@@ -260,6 +260,38 @@
                 bird.velocity = lift;
             }
         }
+
+        function updateBird() {
+            bird.velocity += gravity;
+            bird.y += bird.velocity;
+
+            // Collision with top/bottom of canvas
+            if (bird.y + (bird.radius - hitboxPadding) > canvas.height || bird.y - (bird.radius - hitboxPadding) < 0) {
+                collidingPipe = null; // No specific pipe was hit
+                endGame();
+            }
+        }
+
+        function updateTrajectory() {
+            // Add a new point to the trajectory every few frames for performance
+            if (frames % 2 === 0) {
+                trajectory.push({ x: bird.x, y: bird.y, hue: trajectoryHue });
+                trajectoryHue = (trajectoryHue + 5) % 360; // Cycle hue for rainbow
+            }
+
+            // Move all trajectory points to the left along with the screen
+            trajectory.forEach(point => {
+                point.x -= gameSpeed;
+            });
+
+            // Limit the length of the trajectory to prevent lag
+            if (trajectory.length > 100) {
+                trajectory.shift();
+            }
+
+            // Also remove points that have gone off-screen
+            trajectory = trajectory.filter(point => point.x > 0);
+        }
         
         // Pipe object functions
         function drawPipes() {
@@ -352,6 +384,7 @@
                 updateBird();
                 updatePipes();
                 updateTrajectory();
+                checkCollisions();
             }
 
             // THEN DRAW LOGIC
@@ -366,10 +399,6 @@
                 drawHitboxes();
             }
             
-            if (!isDying) {
-                checkCollisions();
-            }
-
             frames++;
             requestAnimationFrame(gameLoop);
         }
@@ -494,10 +523,4 @@
     </script>
 </body>
 </html>
-
-
-
-</html>
-
-
 
