@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Flappy Bird</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Basic styles to make the game look good */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #333;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        #game-container {
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            max-height: 800px;
+            background-color: #70c5ce;
+            position: relative;
+            overflow: hidden;
+            border: 5px solid #000;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            color: white;
+            text-shadow: 3px 3px 0 #000;
+            z-index: 10;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 20;
+            border: 3px solid #fff;
+        }
+        #message-box h2 {
+            margin-top: 0;
+            font-size: 1.8rem;
+        }
+        #message-box p {
+            margin-bottom: 0;
+            font-size: 1rem;
+        }
+        #physics-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 30;
+            font-size: 0.75rem;
+            text-shadow: 2px 2px 0 #000;
+            width: 90%;
+            box-sizing: border-box;
+            border: 2px solid #fff;
+        }
+        .control-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .control-group label {
+            white-space: nowrap;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .control-group span {
+            min-width: 40px;
+            text-align: right;
+            background: #222;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">0</div>
+        <div id="message-box">
+            <h2>Flappy Bird</h2>
+            <p>Click or Tap to Start!</p>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="physics-controls">
+            <div class="control-group">
+                <label for="gravity-slider">Gravity:</label>
+                <input type="range" id="gravity-slider" min="0.2" max="1.5" step="0.05" value="1.25">
+                <span id="gravity-value">1.25</span>
+            </div>
+            <div class="control-group">
+                <label for="jump-slider">Jump:</label>
+                <input type="range" id="jump-slider" min="6" max="16" step="0.5" value="15">
+                <span id="jump-value">15.0</span>
+            </div>
+            <div class="control-group">
+                <label for="speed-slider">Speed:</label>
+                <input type="range" id="speed-slider" min="1" max="8" step="0.25" value="3">
+                <span id="speed-value">3.0</span>
+            </div>
+            <div class="control-group">
+                <label for="pipe-freq-slider">Pipe Freq:</label>
+                <input type="range" id="pipe-freq-slider" min="1" max="200" step="1" value="100">
+                <span id="pipe-freq-value">100</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const messageBox = document.getElementById('message-box');
+        const messageTitle = messageBox.querySelector('h2');
+        const messageText = messageBox.querySelector('p');
+        const gravitySlider = document.getElementById('gravity-slider');
+        const gravityValue = document.getElementById('gravity-value');
+        const jumpSlider = document.getElementById('jump-slider');
+        const jumpValue = document.getElementById('jump-value');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedValue = document.getElementById('speed-value');
+        const pipeFreqSlider = document.getElementById('pipe-freq-slider');
+        const pipeFreqValue = document.getElementById('pipe-freq-value');
+
+        let bird, pipes, score, gravity, lift, gameSpeed, pipeGap, pipeFrequency, trajectory, trajectoryHue;
+        let isGameOver = false;
+        let gameStarted = false;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+
+        // Initialize game variables
+        function init() {
+            bird = {
+                x: canvas.width / 4,
+                y: canvas.height / 2,
+                radius: 20,
+                velocity: 0
+            };
+            pipes = [];
+            trajectory = [];
+            trajectoryHue = 0;
+            score = 0;
+            gravity = parseFloat(gravitySlider.value);
+            lift = -parseFloat(jumpSlider.value);
+            gameSpeed = parseFloat(speedSlider.value);
+            pipeGap = 200;
+            pipeFrequency = parseInt(pipeFreqSlider.value);
+            isGameOver = false;
+            scoreDisplay.textContent = score;
+            messageBox.style.display = 'none';
+            if (!gameStarted) {
+                gameLoop();
+                gameStarted = true;
+            }
+        }
+
+        // Bird object functions
+        function drawBird() {
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffc700'; // Yellow bird
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        function drawTrajectory() {
+            if (trajectory.length < 2) return;
+
+            ctx.lineWidth = 5; // A nice thick line
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            for (let i = 1; i < trajectory.length; i++) {
+                ctx.beginPath();
+                ctx.moveTo(trajectory[i-1].x, trajectory[i-1].y);
+                ctx.lineTo(trajectory[i].x, trajectory[i].y);
+                // Use the hue stored with each point to create a rainbow effect
+                ctx.strokeStyle = `hsl(${trajectory[i].hue}, 100%, 65%)`;
+                ctx.stroke();
+            }
+        }
+
+        function updateBird() {
+            bird.velocity += gravity;
+            bird.y += bird.velocity;
+
+            // Add current position and color hue to trajectory
+            trajectoryHue = (trajectoryHue + 5) % 360; // Cycle hue 0-359
+            trajectory.push({ x: bird.x, y: bird.y, hue: trajectoryHue });
+            if (trajectory.length > 50) { // Keep trajectory length manageable
+                trajectory.shift();
+            }
+
+            // Collision with top/bottom
+            if (bird.y + bird.radius > canvas.height || bird.y - bird.radius < 0) {
+                endGame();
+            }
+        }
+
+        function updateTrajectory() {
+            // Move all trajectory points to the left with the pipes
+            trajectory.forEach(point => {
+                point.x -= gameSpeed;
+            });
+            // Remove points that have gone completely off-screen
+            trajectory = trajectory.filter(point => point.x > -5);
+        }
+
+        function flap() {
+            if (!isGameOver) {
+                bird.velocity = lift;
+            }
+        }
+        
+        // Pipe object functions
+        function drawPipes() {
+            ctx.fillStyle = '#73bf2e'; // Green pipes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 4;
+            pipes.forEach(pipe => {
+                // Top pipe
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
+                ctx.strokeRect(pipe.x, 0, pipe.width, pipe.top);
+                // Bottom pipe
+                ctx.fillRect(pipe.x, pipe.top + pipe.gap, pipe.width, canvas.height - pipe.top - pipe.gap);
+                ctx.strokeRect(pipe.x, pipe.top + pipe.gap, pipe.width, canvas.height - pipe.top - pipe.gap);
+            });
+        }
+
+        function updatePipes() {
+            if (frames % pipeFrequency === 0) {
+                const minHeight = 50;
+                const maxHeight = canvas.height - pipeGap - minHeight;
+                const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+
+                pipes.push({
+                    x: canvas.width,
+                    width: 60,
+                    top: topPipeHeight,
+                    gap: pipeGap,
+                    passed: false
+                });
+            }
+
+            pipes.forEach(pipe => {
+                pipe.x -= gameSpeed;
+            });
+            
+            // Remove off-screen pipes
+            pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+        }
+
+        // Collision detection for pipes
+        function checkCollisions() {
+            const hitboxPadding = 5; // Makes hitbox smaller and less punishing
+            for (let pipe of pipes) {
+                // Check if bird is within the horizontal range of the pipe
+                if (bird.x + (bird.radius - hitboxPadding) > pipe.x && bird.x - (bird.radius - hitboxPadding) < pipe.x + pipe.width) {
+                    // Check if bird hits top or bottom pipe
+                    if (bird.y - (bird.radius - hitboxPadding) < pipe.top || bird.y + (bird.radius - hitboxPadding) > pipe.top + pipe.gap) {
+                        endGame();
+                        return;
+                    }
+                }
+
+                // Check for scoring
+                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                    pipe.passed = true;
+                }
+            }
+        }
+        
+        // Game state functions
+        function endGame() {
+            isGameOver = true;
+            messageTitle.textContent = "Game Over!";
+            messageText.innerHTML = `Score: ${score}<br>Click to Play Again`;
+            messageBox.style.display = 'flex';
+        }
+
+        function resetGame() {
+            resizeCanvas();
+            init();
+        }
+
+        // The main game loop
+        let frames = 0;
+        function gameLoop() {
+            if (isGameOver) return;
+
+            // UPDATE LOGIC FIRST
+            updateBird();
+            updatePipes();
+            updateTrajectory();
+
+            // THEN DRAW LOGIC
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawPipes();
+            drawTrajectory();
+            drawBird();
+            
+            checkCollisions();
+
+            frames++;
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Event Listeners
+        window.addEventListener('resize', resizeCanvas, false);
+        
+        function handleInput(event) {
+            event.preventDefault(); // Prevents double-tap zoom on mobile
+            if (isGameOver) {
+                resetGame();
+            } else {
+                if (!gameStarted) {
+                     init();
+                }
+                flap();
+            }
+        }
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                handleInput(e);
+            }
+        });
+        
+        // Use mousedown and touchstart for wider compatibility
+        canvas.addEventListener('mousedown', handleInput);
+        canvas.addEventListener('touchstart', handleInput);
+
+        gravitySlider.addEventListener('input', (e) => {
+            gravity = parseFloat(e.target.value);
+            gravityValue.textContent = gravity.toFixed(2);
+        });
+
+        jumpSlider.addEventListener('input', (e) => {
+            lift = -parseFloat(e.target.value);
+            jumpValue.textContent = (-lift).toFixed(1);
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            gameSpeed = parseFloat(e.target.value);
+            speedValue.textContent = gameSpeed.toFixed(1);
+        });
+
+        pipeFreqSlider.addEventListener('input', (e) => {
+            pipeFrequency = parseInt(e.target.value);
+            pipeFreqValue.textContent = pipeFrequency;
+        });
+
+        // Initial setup
+        resizeCanvas();
+
+        // Set initial physics values and display them
+        gravity = parseFloat(gravitySlider.value);
+        lift = -parseFloat(jumpSlider.value);
+        gameSpeed = parseFloat(speedSlider.value);
+        pipeFrequency = parseInt(pipeFreqSlider.value);
+        gravityValue.textContent = gravity.toFixed(2);
+        jumpValue.textContent = (-lift).toFixed(1);
+        speedValue.textContent = gameSpeed.toFixed(1);
+        pipeFreqValue.textContent = pipeFrequency;
+    </script>
+</body>
+</html>
+
+
+
