@@ -80,7 +80,7 @@
             color: white;
             padding: 10px 15px;
             border-radius: 10px;
-            display: flex;
+            display: none; /* Hide by default */
             flex-direction: column;
             gap: 10px;
             z-index: 30;
@@ -141,6 +141,21 @@
                 <input type="range" id="pipe-freq-slider" min="1" max="200" step="1" value="100">
                 <span id="pipe-freq-value">100</span>
             </div>
+            <div class="control-group">
+                <label for="bird-size-slider">Bird Size:</label>
+                <input type="range" id="bird-size-slider" min="0.5" max="2.5" step="0.05" value="1.2">
+                <span id="bird-size-value">1.20</span>
+            </div>
+            <div class="control-group">
+                <label for="hitbox-slider">Hitbox Pad:</label>
+                <input type="range" id="hitbox-slider" min="0" max="18" step="1" value="10">
+                <span id="hitbox-value">10</span>
+            </div>
+            <div class="control-group">
+                <label for="initial-wait-slider">Initial Wait:</label>
+                <input type="range" id="initial-wait-slider" min="0" max="300" step="10" value="100">
+                <span id="initial-wait-value">100</span>
+            </div>
         </div>
     </div>
 
@@ -159,10 +174,20 @@
         const speedValue = document.getElementById('speed-value');
         const pipeFreqSlider = document.getElementById('pipe-freq-slider');
         const pipeFreqValue = document.getElementById('pipe-freq-value');
+        const birdSizeSlider = document.getElementById('bird-size-slider');
+        const birdSizeValue = document.getElementById('bird-size-value');
+        const hitboxSlider = document.getElementById('hitbox-slider');
+        const hitboxValue = document.getElementById('hitbox-value');
+        const initialWaitSlider = document.getElementById('initial-wait-slider');
+        const initialWaitValue = document.getElementById('initial-wait-value');
 
         let bird, pipes, score, gravity, lift, gameSpeed, pipeGap, pipeFrequency, trajectory, trajectoryHue;
+        let birdSizeMultiplier, hitboxPadding, initialPipeWait;
         let isGameOver = false;
         let gameStarted = false;
+        let isPaused = false;
+        let isDying = false; // New state for death animation
+        let collidingPipe = null; // To store the pipe we hit
 
         function resizeCanvas() {
             canvas.width = canvas.parentElement.clientWidth;
@@ -181,24 +206,30 @@
             trajectory = [];
             trajectoryHue = 0;
             score = 0;
+            frames = 0; // Reset for initial wait
             gravity = parseFloat(gravitySlider.value);
             lift = -parseFloat(jumpSlider.value);
             gameSpeed = parseFloat(speedSlider.value);
             pipeGap = 200;
             pipeFrequency = parseInt(pipeFreqSlider.value);
+            birdSizeMultiplier = parseFloat(birdSizeSlider.value);
+            hitboxPadding = parseInt(hitboxSlider.value);
+            initialPipeWait = parseInt(initialWaitSlider.value);
             isGameOver = false;
+            isPaused = false;
+            isDying = false;
+            collidingPipe = null;
             scoreDisplay.textContent = score;
             messageBox.style.display = 'none';
-            if (!gameStarted) {
-                gameLoop();
-                gameStarted = true;
-            }
+            document.getElementById('physics-controls').style.display = 'none';
+            gameStarted = true; // The game is now considered 'started' or 'ready'
         }
 
         // Bird object functions
         function drawBird() {
+            const visualRadius = bird.radius * birdSizeMultiplier; // Make the bird appear bigger
             ctx.beginPath();
-            ctx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+            ctx.arc(bird.x, bird.y, visualRadius, 0, Math.PI * 2);
             ctx.fillStyle = '#ffc700'; // Yellow bird
             ctx.fill();
             ctx.lineWidth = 3;
@@ -224,34 +255,8 @@
             }
         }
 
-        function updateBird() {
-            bird.velocity += gravity;
-            bird.y += bird.velocity;
-
-            // Add current position and color hue to trajectory
-            trajectoryHue = (trajectoryHue + 5) % 360; // Cycle hue 0-359
-            trajectory.push({ x: bird.x, y: bird.y, hue: trajectoryHue });
-            if (trajectory.length > 50) { // Keep trajectory length manageable
-                trajectory.shift();
-            }
-
-            // Collision with top/bottom
-            if (bird.y + bird.radius > canvas.height || bird.y - bird.radius < 0) {
-                endGame();
-            }
-        }
-
-        function updateTrajectory() {
-            // Move all trajectory points to the left with the pipes
-            trajectory.forEach(point => {
-                point.x -= gameSpeed;
-            });
-            // Remove points that have gone completely off-screen
-            trajectory = trajectory.filter(point => point.x > -5);
-        }
-
         function flap() {
-            if (!isGameOver) {
+            if (!isGameOver && !isPaused) {
                 bird.velocity = lift;
             }
         }
@@ -272,7 +277,7 @@
         }
 
         function updatePipes() {
-            if (frames % pipeFrequency === 0) {
+            if (frames >= initialPipeWait && (frames - initialPipeWait) % pipeFrequency === 0) {
                 const minHeight = 50;
                 const maxHeight = canvas.height - pipeGap - minHeight;
                 const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
@@ -296,12 +301,12 @@
 
         // Collision detection for pipes
         function checkCollisions() {
-            const hitboxPadding = 5; // Makes hitbox smaller and less punishing
             for (let pipe of pipes) {
                 // Check if bird is within the horizontal range of the pipe
                 if (bird.x + (bird.radius - hitboxPadding) > pipe.x && bird.x - (bird.radius - hitboxPadding) < pipe.x + pipe.width) {
                     // Check if bird hits top or bottom pipe
                     if (bird.y - (bird.radius - hitboxPadding) < pipe.top || bird.y + (bird.radius - hitboxPadding) > pipe.top + pipe.gap) {
+                        collidingPipe = pipe;
                         endGame();
                         return;
                     }
@@ -318,26 +323,36 @@
         
         // Game state functions
         function endGame() {
-            isGameOver = true;
-            messageTitle.textContent = "Game Over!";
-            messageText.innerHTML = `Score: ${score}<br>Click to Play Again`;
-            messageBox.style.display = 'flex';
+            if (isDying || isGameOver) return; // Prevent multiple calls
+            isDying = true;
+            
+            setTimeout(() => {
+                isGameOver = true;
+                isDying = false;
+                document.getElementById('physics-controls').style.display = 'flex';
+                messageTitle.textContent = "Game Over!";
+                messageText.innerHTML = `Score: ${score}<br>Click to Play Again`;
+                messageBox.style.display = 'flex';
+            }, 500); // 0.5 second delay
         }
 
         function resetGame() {
             resizeCanvas();
             init();
+            gameLoop();
         }
 
         // The main game loop
         let frames = 0;
         function gameLoop() {
-            if (isGameOver) return;
+            if (isGameOver || isPaused) return;
 
-            // UPDATE LOGIC FIRST
-            updateBird();
-            updatePipes();
-            updateTrajectory();
+            // UPDATE LOGIC FIRST (only if not in the dying animation)
+            if (!isDying) {
+                updateBird();
+                updatePipes();
+                updateTrajectory();
+            }
 
             // THEN DRAW LOGIC
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -345,11 +360,33 @@
             drawPipes();
             drawTrajectory();
             drawBird();
+
+            // Draw hitboxes if we are in the dying state
+            if (isDying) {
+                drawHitboxes();
+            }
             
-            checkCollisions();
+            if (!isDying) {
+                checkCollisions();
+            }
 
             frames++;
             requestAnimationFrame(gameLoop);
+        }
+
+        function drawHitboxes() {
+            // Draw bird hitbox in red
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius - hitboxPadding, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw the colliding pipe's hitbox in blue
+            if (collidingPipe) {
+                ctx.fillStyle = 'rgba(0, 0, 255, 0.5)';
+                ctx.fillRect(collidingPipe.x, 0, collidingPipe.width, collidingPipe.top);
+                ctx.fillRect(collidingPipe.x, collidingPipe.top + collidingPipe.gap, collidingPipe.width, canvas.height - collidingPipe.top - collidingPipe.gap);
+            }
         }
 
         // Event Listeners
@@ -357,11 +394,14 @@
         
         function handleInput(event) {
             event.preventDefault(); // Prevents double-tap zoom on mobile
+            if (isPaused) return; // Do nothing if paused
+
             if (isGameOver) {
                 resetGame();
             } else {
                 if (!gameStarted) {
                      init();
+                     gameLoop(); // Start the game loop on the very first input
                 }
                 flap();
             }
@@ -371,11 +411,32 @@
             if (e.code === 'Space') {
                 handleInput(e);
             }
+            if (e.code === 'Escape') {
+                togglePause();
+            }
         });
         
         // Use mousedown and touchstart for wider compatibility
         canvas.addEventListener('mousedown', handleInput);
         canvas.addEventListener('touchstart', handleInput);
+
+        function togglePause() {
+            if (!gameStarted || isGameOver || isDying) return; // Can only pause during active gameplay
+
+            isPaused = !isPaused;
+            const physicsControls = document.getElementById('physics-controls');
+
+            if (isPaused) {
+                physicsControls.style.display = 'flex';
+                messageTitle.textContent = "Paused";
+                messageText.innerHTML = `Press ESC to Resume`;
+                messageBox.style.display = 'flex';
+            } else {
+                physicsControls.style.display = 'none';
+                messageBox.style.display = 'none';
+                gameLoop(); // Resume animation by calling the loop again
+            }
+        }
 
         gravitySlider.addEventListener('input', (e) => {
             gravity = parseFloat(e.target.value);
@@ -397,6 +458,21 @@
             pipeFreqValue.textContent = pipeFrequency;
         });
 
+        birdSizeSlider.addEventListener('input', (e) => {
+            birdSizeMultiplier = parseFloat(e.target.value);
+            birdSizeValue.textContent = birdSizeMultiplier.toFixed(2);
+        });
+
+        hitboxSlider.addEventListener('input', (e) => {
+            hitboxPadding = parseInt(e.target.value);
+            hitboxValue.textContent = hitboxPadding;
+        });
+
+        initialWaitSlider.addEventListener('input', (e) => {
+            initialPipeWait = parseInt(e.target.value);
+            initialWaitValue.textContent = initialPipeWait;
+        });
+
         // Initial setup
         resizeCanvas();
 
@@ -405,12 +481,22 @@
         lift = -parseFloat(jumpSlider.value);
         gameSpeed = parseFloat(speedSlider.value);
         pipeFrequency = parseInt(pipeFreqSlider.value);
+        birdSizeMultiplier = parseFloat(birdSizeSlider.value);
+        hitboxPadding = parseInt(hitboxSlider.value);
+        initialPipeWait = parseInt(initialWaitSlider.value);
         gravityValue.textContent = gravity.toFixed(2);
         jumpValue.textContent = (-lift).toFixed(1);
         speedValue.textContent = gameSpeed.toFixed(1);
         pipeFreqValue.textContent = pipeFrequency;
+        birdSizeValue.textContent = birdSizeMultiplier.toFixed(2);
+        hitboxValue.textContent = hitboxPadding;
+        initialWaitValue.textContent = initialPipeWait;
     </script>
 </body>
+</html>
+
+
+
 </html>
 
 
