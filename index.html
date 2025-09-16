@@ -425,12 +425,6 @@
                     b.y += Math.sin(b.angle) * b.speed * dt;
                 }
                 
-                if (player.bulletEffects.includes('log_decay')) {
-                    b.size = Math.max(2, b.initialSize * (1 - Math.log1p(b.lifetime * 2)));
-                }
-                if (player.bulletEffects.includes('exponential')) {
-                    b.size = Math.min(40, b.initialSize * Math.exp(b.lifetime * 0.5));
-                }
 
                 if (player.bulletEffects.includes('homing')) {
                     const closestEnemy = findClosestEnemy(b.x, b.y);
@@ -545,7 +539,7 @@
 
             // Bullets with walls
              bullets.forEach(bullet => {
-                if (player.bulletEffects.includes('ricochet') && !bullet.bounced) {
+                if (player.bulletEffects.includes('ricochet')) {
                     if (bullet.x <= ROOM_PADDING || bullet.x >= canvas.width - ROOM_PADDING - bullet.size) {
                         bullet.angle = Math.PI - bullet.angle;
                         bullet.bounced = true;
