@@ -1,526 +1,898 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Flappy Bird</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>modded Weather Duck's Roguelike Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        /* Basic styles to make the game look good */
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c; /* gray-900 */
+            color: #f7fafc; /* gray-100 */
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
-            background-color: #333;
-            font-family: 'Press Start 2P', cursive;
-            overflow: hidden; /* Hide scrollbars */
+            min-height: 100vh;
+            margin: 0;
         }
-        #game-container {
-            width: 100%;
-            max-width: 500px;
-            height: 100%;
-            max-height: 800px;
-            background-color: #70c5ce;
-            position: relative;
-            overflow: hidden;
-            border: 5px solid #000;
-            border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-        }
+
         canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
+            background-color: #2d3748; /* gray-800 */
+            border: 4px solid #4a5568; /* gray-700 */
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
         }
-        #score {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 2rem;
-            color: white;
-            text-shadow: 3px 3px 0 #000;
-            z-index: 10;
-        }
-        #message-box {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.6);
-            color: white;
-            padding: 25px;
-            border-radius: 10px;
-            text-align: center;
-            font-size: 1.2rem;
+
+        .game-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            z-index: 20;
-            border: 3px solid #fff;
+            gap: 1rem;
         }
-        #message-box h2 {
-            margin-top: 0;
-            font-size: 1.8rem;
-        }
-        #message-box p {
-            margin-bottom: 0;
-            font-size: 1rem;
-        }
-        #physics-controls {
-            position: absolute;
-            bottom: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.6);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 10px;
-            display: none; /* Hide by default */
-            flex-direction: column;
-            gap: 10px;
-            z-index: 30;
-            font-size: 0.75rem;
-            text-shadow: 2px 2px 0 #000;
-            width: 90%;
-            box-sizing: border-box;
-            border: 2px solid #fff;
-        }
-        .control-group {
+
+        #hud {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-        }
-        .control-group label {
-            white-space: nowrap;
-        }
-        .control-group input[type="range"] {
             width: 100%;
-            cursor: pointer;
+            max-width: 800px;
+            padding: 0 1rem;
+            font-size: 0.9rem;
         }
-        .control-group span {
-            min-width: 40px;
-            text-align: right;
-            background: #222;
-            padding: 2px 4px;
-            border-radius: 4px;
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background-color: #2d3748; /* gray-800 */
+            padding: 2rem;
+            border: 4px solid #4a5568; /* gray-700 */
+            text-align: center;
+            max-width: 90%;
+            width: 600px;
+        }
+        
+        .item-card {
+            background-color: #4a5568; /* gray-700 */
+            border: 2px solid #718096; /* gray-600 */
+            padding: 1rem;
+            margin: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .item-card:hover {
+            background-color: #718096; /* gray-600 */
+            border-color: #a0aec0; /* gray-500 */
+            transform: translateY(-5px);
+        }
+
+        .button {
+            background-color: #4299e1; /* blue-500 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+            margin-top: 1rem;
+        }
+        .button:hover {
+            background-color: #3182ce; /* blue-600 */
         }
     </style>
 </head>
+
 <body>
-    <div id="game-container">
-        <div id="score">0</div>
-        <div id="message-box">
-            <h2>Flappy Bird</h2>
-            <p>Click or Tap to Start!</p>
+    <div id="game-container" class="game-container">
+        <div id="hud">
+            <div id="health-container">Health: <span id="health">100 / 100</span></div>
+            <div id="floor-container">Floor: <span id="floor">1</span></div>
+            <div id="inventory-container">Inventory: <span id="inventory"></span></div>
         </div>
         <canvas id="gameCanvas"></canvas>
-        <div id="physics-controls">
-            <div class="control-group">
-                <label for="gravity-slider">Gravity:</label>
-                <input type="range" id="gravity-slider" min="0.2" max="1.5" step="0.05" value="1.25">
-                <span id="gravity-value">1.25</span>
-            </div>
-            <div class="control-group">
-                <label for="jump-slider">Jump:</label>
-                <input type="range" id="jump-slider" min="6" max="16" step="0.5" value="15">
-                <span id="jump-value">15.0</span>
-            </div>
-            <div class="control-group">
-                <label for="speed-slider">Speed:</label>
-                <input type="range" id="speed-slider" min="1" max="8" step="0.25" value="3">
-                <span id="speed-value">3.0</span>
-            </div>
-            <div class="control-group">
-                <label for="pipe-freq-slider">Pipe Freq:</label>
-                <input type="range" id="pipe-freq-slider" min="1" max="200" step="1" value="100">
-                <span id="pipe-freq-value">100</span>
-            </div>
-            <div class="control-group">
-                <label for="bird-size-slider">Bird Size:</label>
-                <input type="range" id="bird-size-slider" min="0.5" max="2.5" step="0.05" value="1.2">
-                <span id="bird-size-value">1.20</span>
-            </div>
-            <div class="control-group">
-                <label for="hitbox-slider">Hitbox Pad:</label>
-                <input type="range" id="hitbox-slider" min="0" max="18" step="1" value="10">
-                <span id="hitbox-value">10</span>
-            </div>
-            <div class="control-group">
-                <label for="initial-wait-slider">Initial Wait:</label>
-                <input type="range" id="initial-wait-slider" min="0" max="300" step="10" value="100">
-                <span id="initial-wait-value">100</span>
+    </div>
+
+    <div id="start-screen" class="modal">
+        <div class="modal-content">
+            <h1 class="text-3xl mb-4">Weather Duck's Adventure</h1>
+            <p class="mb-6">IMT Lazarus has stolen the weather! Help the Weather Duck get it back.</p>
+            <p class="mb-2 text-sm">WASD to Move</p>
+            <p class="mb-6 text-sm">Arrow Keys to Shoot</p>
+            <button id="start-button" class="button">Start Game</button>
+        </div>
+    </div>
+
+    <div id="item-selection-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-2xl mb-4">Floor Cleared! Choose an Upgrade.</h2>
+            <div id="item-choices" class="grid md:grid-cols-3 gap-4"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl mb-4 text-red-500">GAME OVER</h2>
+            <p class="mb-6">The weather remains in the clutches of IMT Lazarus...</p>
+            <button id="restart-button" class="button">Try Again</button>
+        </div>
+    </div>
+
+    <div id="win-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl mb-4 text-yellow-400">YOU WIN!</h2>
+            <p class="mb-6">You defeated IMT Lazarus and restored the weather! The world is soggy and grateful.</p>
+            <button id="play-again-button" class="button">Play Again</button>
+        </div>
+    </div>
+
+    <div id="post-boss-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl mb-4 text-yellow-400">IMT Lazarus Defeated!</h2>
+            <p class="mb-6">You have restored balance to the weather, but a strange power still emanates from the dungeon... Do you retire a hero, or press onward into the unknown?</p>
+            <div class="flex justify-center gap-4">
+                <button id="finish-game-button" class="button">Finish Game</button>
+                <button id="continue-game-button" class="button">Continue Adventure</button>
             </div>
         </div>
     </div>
 
+
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreDisplay = document.getElementById('score');
-        const messageBox = document.getElementById('message-box');
-        const messageTitle = messageBox.querySelector('h2');
-        const messageText = messageBox.querySelector('p');
-        const gravitySlider = document.getElementById('gravity-slider');
-        const gravityValue = document.getElementById('gravity-value');
-        const jumpSlider = document.getElementById('jump-slider');
-        const jumpValue = document.getElementById('jump-value');
-        const speedSlider = document.getElementById('speed-slider');
-        const speedValue = document.getElementById('speed-value');
-        const pipeFreqSlider = document.getElementById('pipe-freq-slider');
-        const pipeFreqValue = document.getElementById('pipe-freq-value');
-        const birdSizeSlider = document.getElementById('bird-size-slider');
-        const birdSizeValue = document.getElementById('bird-size-value');
-        const hitboxSlider = document.getElementById('hitbox-slider');
-        const hitboxValue = document.getElementById('hitbox-value');
-        const initialWaitSlider = document.getElementById('initial-wait-slider');
-        const initialWaitValue = document.getElementById('initial-wait-value');
 
-        let bird, pipes, score, gravity, lift, gameSpeed, pipeGap, pipeFrequency, trajectory, trajectoryHue;
-        let birdSizeMultiplier, hitboxPadding, initialPipeWait;
-        let isGameOver = false;
-        let gameStarted = false;
-        let isPaused = false;
-        let isDying = false; // New state for death animation
-        let collidingPipe = null; // To store the pipe we hit
+        // UI Elements
+        const hud = {
+            health: document.getElementById('health'),
+            floor: document.getElementById('floor'),
+            inventory: document.getElementById('inventory')
+        };
+        const startScreen = document.getElementById('start-screen');
+        const itemSelectionScreen = document.getElementById('item-selection-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const winScreen = document.getElementById('win-screen');
+        const postBossScreen = document.getElementById('post-boss-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const playAgainButton = document.getElementById('play-again-button');
+        const finishGameButton = document.getElementById('finish-game-button');
+        const continueGameButton = document.getElementById('continue-game-button');
+        
+        // Game Constants
+        const PLAYER_SIZE = 30;
+        const ENEMY_SIZE = 30;
+        const BULLET_SIZE = 10;
+        const ROOM_PADDING = 50;
+        const DOOR_WIDTH = 80;
+        const DOOR_THICKNESS = 10;
+        
+        let gameState = 'start'; // 'start', 'playing', 'item_selection', 'game_over', 'win'
 
-        function resizeCanvas() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
-        }
+        // Game State
+        let player, enemies, bullets, enemyBullets, floor, keys, lastShotTime, doors, endlessMode, explosions;
 
-        // Initialize game variables
+        // --- Item Definitions ---
+        const ITEMS = [
+            // Stat increases
+            { name: 'Featherlight Boots', description: '+20% Speed', type: 'stat', effect: p => p.speed *= 1.2 },
+            { name: 'Heavy Raincoat', description: '+25 Max Health', type: 'stat', effect: p => { p.maxHealth += 25; p.health += 25; }},
+            { name: 'Stronger Wings', description: '+20% Damage', type: 'stat', effect: p => p.damage *= 1.2 },
+            { name: 'Rapid-Fire Beak', description: '-50% Fire Delay', type: 'stat', effect: p => p.fireRate *= 0.5 },
+            { name: 'Lucky Clover', description: '+10% Crit Chance', type: 'stat', effect: p => p.critChance += 0.1 },
+            { name: 'Sharpened Beak', description: '+50% Crit Damage', type: 'stat', effect: p => p.critDamage += 0.5 },
+
+            // Bullet effects
+            { name: 'Thunderstorm', description: 'Bullets may chain lightning to nearby enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('thunderstorm') },
+            { name: 'Ricochet Rain', description: 'Bullets bounce off walls once.', type: 'bullet_effect', effect: p => p.bulletEffects.push('ricochet') },
+            { name: 'Homing Missiles', description: 'Bullets will seek out nearby enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('homing') },
+            { name: 'Piercing Rounds', description: 'Bullets can pierce through one enemy.', type: 'bullet_effect', effect: p => p.bulletEffects.push('piercing') }
+            
+            // Math functions
+            { name: 'Sine Wave Shot', description: 'Bullets travel in a sine wave pattern.', type: 'bullet_effect', effect: p => p.bulletEffects.push('sine_wave') }
+
+            // Specials
+            { name: 'Tangent Shot', description: 'Fire two additional bullets at slight angles.', type: 'special', effect: p => p.bulletEffects.push('tangent') },
+            { name: 'Fibonacci Spiral', description: 'Fire a spiral of bullets occasionally.', type: 'special', effect: p => p.bulletEffects.push('fibonacci') },
+        ];
+
+        const ENDLESS_ITEMS = [
+            { name: 'Gale Force Wings', description: '1% Damage', type: 'stat', effect: p => p.damage *= 0.01 },
+            { name: 'Storm God\'s Armor', description: '+100 Max Health', type: 'stat', effect: p => { p.maxHealth += 100; p.health += 100; }},
+            { name: 'Hyper-Velocity Beak', description: '-30% Fire Delay', type: 'stat', effect: p => p.fireRate *= 0.1 },
+            { name: 'Eye of the Hurricane', description: 'Fire bullets in 4 directions.', type: 'special', effect: p => p.bulletEffects.push('hurricane') },
+        ];
+
+
+        // --- Initialization ---
         function init() {
-            bird = {
-                x: canvas.width / 4,
-                y: canvas.height / 2,
-                radius: 20,
-                velocity: 0
+            canvas.width = 800;
+            canvas.height = 600;
+
+            player = {
+                x: canvas.width / 2 - PLAYER_SIZE / 2,
+                y: canvas.height / 2 - PLAYER_SIZE / 2,
+                width: PLAYER_SIZE,
+                height: PLAYER_SIZE,
+                speed: 250, // pixels per second
+                health: 100,
+                maxHealth: 100,
+                damage: 10,
+                fireRate: 500, // ms between shots
+                critChance: 0.05,
+                critDamage: 1.5,
+                bulletEffects: [],
+                inventory: [],
+                invincible: false,
+                invincibilityEndTime: 0
             };
-            pipes = [];
-            trajectory = [];
-            trajectoryHue = 0;
-            score = 0;
-            frames = 0; // Reset for initial wait
-            gravity = parseFloat(gravitySlider.value);
-            lift = -parseFloat(jumpSlider.value);
-            gameSpeed = parseFloat(speedSlider.value);
-            pipeGap = 200;
-            pipeFrequency = parseInt(pipeFreqSlider.value);
-            birdSizeMultiplier = parseFloat(birdSizeSlider.value);
-            hitboxPadding = parseInt(hitboxSlider.value);
-            initialPipeWait = parseInt(initialWaitSlider.value);
-            isGameOver = false;
-            isPaused = false;
-            isDying = false;
-            collidingPipe = null;
-            scoreDisplay.textContent = score;
-            messageBox.style.display = 'none';
-            document.getElementById('physics-controls').style.display = 'none';
-            gameStarted = true; // The game is now considered 'started' or 'ready'
+
+            floor = 0;
+            keys = {};
+            lastShotTime = 0;
+            endlessMode = false;
+            explosions = [];
+            
+            nextLevel();
         }
 
-        // Bird object functions
-        function drawBird() {
-            const visualRadius = bird.radius * birdSizeMultiplier; // Make the bird appear bigger
-            ctx.beginPath();
-            ctx.arc(bird.x, bird.y, visualRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffc700'; // Yellow bird
-            ctx.fill();
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = '#333';
-            ctx.stroke();
-            ctx.closePath();
-        }
+        function nextLevel() {
+            floor++;
+            player.x = canvas.width / 2 - PLAYER_SIZE / 2;
+            player.y = canvas.height - ROOM_PADDING - PLAYER_SIZE - 20;
+            
+            // Give player invincibility at the start of a new floor
+            player.invincible = true;
+            player.invincibilityEndTime = Date.now() + 3000; // 3 seconds
 
-        function drawTrajectory() {
-            if (trajectory.length < 2) return;
-
-            ctx.lineWidth = 5; // A nice thick line
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-
-            for (let i = 1; i < trajectory.length; i++) {
-                ctx.beginPath();
-                ctx.moveTo(trajectory[i-1].x, trajectory[i-1].y);
-                ctx.lineTo(trajectory[i].x, trajectory[i].y);
-                // Use the hue stored with each point to create a rainbow effect
-                ctx.strokeStyle = `hsl(${trajectory[i].hue}, 100%, 65%)`;
-                ctx.stroke();
-            }
-        }
-
-        function flap() {
-            if (!isGameOver && !isPaused) {
-                bird.velocity = lift;
-            }
-        }
-
-        function updateBird() {
-            bird.velocity += gravity;
-            bird.y += bird.velocity;
-
-            // Collision with top/bottom of canvas
-            if (bird.y + (bird.radius - hitboxPadding) > canvas.height || bird.y - (bird.radius - hitboxPadding) < 0) {
-                collidingPipe = null; // No specific pipe was hit
-                endGame();
-            }
-        }
-
-        function updateTrajectory() {
-            // Add a new point to the trajectory every few frames for performance
-            if (frames % 2 === 0) {
-                trajectory.push({ x: bird.x, y: bird.y, hue: trajectoryHue });
-                trajectoryHue = (trajectoryHue + 5) % 360; // Cycle hue for rainbow
-            }
-
-            // Move all trajectory points to the left along with the screen
-            trajectory.forEach(point => {
-                point.x -= gameSpeed;
-            });
-
-            // Limit the length of the trajectory to prevent lag
-            if (trajectory.length > 100) {
-                trajectory.shift();
-            }
-
-            // Also remove points that have gone off-screen
-            trajectory = trajectory.filter(point => point.x > 0);
+            generateRoom();
+            gameState = 'playing';
+            updateHUD();
         }
         
-        // Pipe object functions
-        function drawPipes() {
-            ctx.fillStyle = '#73bf2e'; // Green pipes
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 4;
-            pipes.forEach(pipe => {
-                // Top pipe
-                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
-                ctx.strokeRect(pipe.x, 0, pipe.width, pipe.top);
-                // Bottom pipe
-                ctx.fillRect(pipe.x, pipe.top + pipe.gap, pipe.width, canvas.height - pipe.top - pipe.gap);
-                ctx.strokeRect(pipe.x, pipe.top + pipe.gap, pipe.width, canvas.height - pipe.top - pipe.gap);
-            });
-        }
-
-        function updatePipes() {
-            if (frames >= initialPipeWait && (frames - initialPipeWait) % pipeFrequency === 0) {
-                const minHeight = 50;
-                const maxHeight = canvas.height - pipeGap - minHeight;
-                const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
-
-                pipes.push({
-                    x: canvas.width,
-                    width: 60,
-                    top: topPipeHeight,
-                    gap: pipeGap,
-                    passed: false
-                });
+        function generateRoom() {
+            enemies = [];
+            bullets = [];
+            enemyBullets = [];
+            explosions = [];
+            let enemyCount = Math.floor(2 + floor * 1.5);
+            if (endlessMode) {
+                enemyCount = Math.floor(enemyCount * 1.5);
             }
-
-            pipes.forEach(pipe => {
-                pipe.x -= gameSpeed;
-            });
             
-            // Remove off-screen pipes
-            pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
-        }
-
-        // Collision detection for pipes
-        function checkCollisions() {
-            for (let pipe of pipes) {
-                // Check if bird is within the horizontal range of the pipe
-                if (bird.x + (bird.radius - hitboxPadding) > pipe.x && bird.x - (bird.radius - hitboxPadding) < pipe.x + pipe.width) {
-                    // Check if bird hits top or bottom pipe
-                    if (bird.y - (bird.radius - hitboxPadding) < pipe.top || bird.y + (bird.radius - hitboxPadding) > pipe.top + pipe.gap) {
-                        collidingPipe = pipe;
-                        endGame();
-                        return;
+            if (floor % 5 === 0) { // Boss floor
+                enemies.push(createBoss());
+            } else {
+                for (let i = 0; i < enemyCount; i++) {
+                    let x, y;
+                    do {
+                        x = ROOM_PADDING + Math.random() * (canvas.width - ROOM_PADDING * 2 - ENEMY_SIZE);
+                        y = ROOM_PADDING + Math.random() * (canvas.height - ROOM_PADDING * 2 - ENEMY_SIZE);
+                    } while (Math.hypot(x - player.x, y - player.y) < 200); // Don't spawn on top of player
+                    
+                    // Add a chance for ranged enemies after floor 3
+                    if (floor > 3 && Math.random() < 0.3) {
+                        enemies.push(createRangedEnemy(x, y));
+                    } else {
+                        enemies.push(createEnemy(x, y));
                     }
                 }
-
-                // Check for scoring
-                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
-                    score++;
-                    scoreDisplay.textContent = score;
-                    pipe.passed = true;
-                }
             }
+
+            doors = [
+                { x: canvas.width / 2 - DOOR_WIDTH / 2, y: ROOM_PADDING, width: DOOR_WIDTH, height: DOOR_THICKNESS, open: false, side: 'top' },
+                { x: canvas.width / 2 - DOOR_WIDTH / 2, y: canvas.height - ROOM_PADDING - DOOR_THICKNESS, width: DOOR_WIDTH, height: DOOR_THICKNESS, open: false, side: 'bottom' },
+                { x: ROOM_PADDING, y: canvas.height / 2 - DOOR_WIDTH / 2, width: DOOR_THICKNESS, height: DOOR_WIDTH, open: false, side: 'left' },
+                { x: canvas.width - ROOM_PADDING - DOOR_THICKNESS, y: canvas.height / 2 - DOOR_WIDTH / 2, width: DOOR_THICKNESS, height: DOOR_WIDTH, open: false, side: 'right' },
+            ];
         }
-        
-        // Game state functions
-        function endGame() {
-            if (isDying || isGameOver) return; // Prevent multiple calls
-            isDying = true;
+
+        // --- Update Functions ---
+
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            if (gameState !== 'playing') return;
             
-            setTimeout(() => {
-                isGameOver = true;
-                isDying = false;
-                document.getElementById('physics-controls').style.display = 'flex';
-                messageTitle.textContent = "Game Over!";
-                messageText.innerHTML = `Score: ${score}<br>Click to Play Again`;
-                messageBox.style.display = 'flex';
-            }, 500); // 0.5 second delay
-        }
+            const deltaTime = (timestamp - lastTime) / 1000 || 0;
+            lastTime = timestamp;
 
-        function resetGame() {
-            resizeCanvas();
-            init();
-            gameLoop();
-        }
+            updatePlayer(deltaTime);
+            updateBullets(deltaTime);
+            updateEnemies(deltaTime);
+            updateEnemyBullets(deltaTime);
+            updateExplosions(deltaTime);
+            checkCollisions();
 
-        // The main game loop
-        let frames = 0;
-        function gameLoop() {
-            if (isGameOver || isPaused) return;
+            draw();
 
-            // UPDATE LOGIC FIRST (only if not in the dying animation)
-            if (!isDying) {
-                updateBird();
-                updatePipes();
-                updateTrajectory();
-                checkCollisions();
-            }
-
-            // THEN DRAW LOGIC
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            drawPipes();
-            drawTrajectory();
-            drawBird();
-
-            // Draw hitboxes if we are in the dying state
-            if (isDying) {
-                drawHitboxes();
-            }
-            
-            frames++;
             requestAnimationFrame(gameLoop);
         }
 
-        function drawHitboxes() {
-            // Draw bird hitbox in red
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-            ctx.beginPath();
-            ctx.arc(bird.x, bird.y, bird.radius - hitboxPadding, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw the colliding pipe's hitbox in blue
-            if (collidingPipe) {
-                ctx.fillStyle = 'rgba(0, 0, 255, 0.5)';
-                ctx.fillRect(collidingPipe.x, 0, collidingPipe.width, collidingPipe.top);
-                ctx.fillRect(collidingPipe.x, collidingPipe.top + collidingPipe.gap, collidingPipe.width, canvas.height - collidingPipe.top - collidingPipe.gap);
+        function updatePlayer(dt) {
+            // Check for invincibility timeout
+            if (player.invincible && Date.now() > player.invincibilityEndTime) {
+                player.invincible = false;
             }
-        }
 
-        // Event Listeners
-        window.addEventListener('resize', resizeCanvas, false);
-        
-        function handleInput(event) {
-            event.preventDefault(); // Prevents double-tap zoom on mobile
-            if (isPaused) return; // Do nothing if paused
+            // DEBUG: Kill all enemies
+            if (keys['k']) {
+                enemies = [];
+                keys['k'] = false; // Reset key to prevent this from running every frame
+            }
 
-            if (isGameOver) {
-                resetGame();
-            } else {
-                if (!gameStarted) {
-                     init();
-                     gameLoop(); // Start the game loop on the very first input
+            let dx = 0;
+            let dy = 0;
+            if (keys['w']) dy -= 1;
+            if (keys['s']) dy += 1;
+            if (keys['a']) dx -= 1;
+            if (keys['d']) dx += 1;
+
+            if (dx !== 0 || dy !== 0) {
+                const mag = Math.sqrt(dx * dx + dy * dy);
+                dx /= mag;
+                dy /= mag;
+                
+                player.x += dx * player.speed * dt;
+                player.y += dy * player.speed * dt;
+            }
+            
+            // Wall collision
+            player.x = Math.max(ROOM_PADDING, Math.min(player.x, canvas.width - ROOM_PADDING - player.width));
+            player.y = Math.max(ROOM_PADDING, Math.min(player.y, canvas.height - ROOM_PADDING - player.height));
+            
+            // Check for level clear
+            if (enemies.length === 0 && gameState === 'playing') {
+                doors.forEach(d => d.open = true);
+                
+                let enteredDoor = false;
+                doors.forEach(d => {
+                    if (player.x < d.x + d.width && player.x + player.width > d.x &&
+                        player.y < d.y + d.height && player.y + player.height > d.y) {
+                        enteredDoor = true;
+                    }
+                });
+
+                if (enteredDoor) {
+                    if (floor === 10 && !endlessMode) { 
+                        winGame();
+                        return; // return from updatePlayer
+                    }
+                    levelClear();
                 }
-                flap();
-            }
-        }
-        
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                handleInput(e);
-            }
-            if (e.code === 'Escape') {
-                togglePause();
-            }
-        });
-        
-        // Use mousedown and touchstart for wider compatibility
-        canvas.addEventListener('mousedown', handleInput);
-        canvas.addEventListener('touchstart', handleInput);
-
-        function togglePause() {
-            if (!gameStarted || isGameOver || isDying) return; // Can only pause during active gameplay
-
-            isPaused = !isPaused;
-            const physicsControls = document.getElementById('physics-controls');
-
-            if (isPaused) {
-                physicsControls.style.display = 'flex';
-                messageTitle.textContent = "Paused";
-                messageText.innerHTML = `Press ESC to Resume`;
-                messageBox.style.display = 'flex';
-            } else {
-                physicsControls.style.display = 'none';
-                messageBox.style.display = 'none';
-                gameLoop(); // Resume animation by calling the loop again
             }
         }
 
-        gravitySlider.addEventListener('input', (e) => {
-            gravity = parseFloat(e.target.value);
-            gravityValue.textContent = gravity.toFixed(2);
+        function updateBullets(dt) {
+            // Shooting
+            const now = Date.now();
+            if (now - lastShotTime > player.fireRate) {
+                let shootDir = { x: 0, y: 0 };
+                if (keys['arrowup']) shootDir.y = -1;
+                if (keys['arrowdown']) shootDir.y = 1;
+                if (keys['arrowleft']) shootDir.x = -1;
+                if (keys['arrowright']) shootDir.x = 1;
+
+                if (shootDir.x !== 0 || shootDir.y !== 0) {
+                    lastShotTime = now;
+                    const baseAngle = Math.atan2(shootDir.y, shootDir.x);
+                    
+                    createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle);
+
+                    if (player.bulletEffects.includes('hurricane')) {
+                        for(let i = 1; i < 4; i++) {
+                            createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + i * Math.PI / 2);
+                        }
+                    }
+                    
+                    if (player.bulletEffects.includes('tangent')) {
+                         createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + Math.PI / 8);
+                         createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle - Math.PI / 8);
+                        createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + Math.PI / 4);
+                         createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle - Math.PI / 4);
+                    }
+                    if (player.bulletEffects.includes('fibonacci') && Math.random() < 0.1) {
+                         for(let i=0; i<2; i++){
+                            createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + i * (Math.PI / 4));
+                         }
+                    }
+                }
+            }
+            
+            // Move bullets
+            bullets.forEach((b, index) => {
+                b.lifetime += dt;
+
+                if (player.bulletEffects.includes('sine_wave')) {
+                    const perpAngle = b.angle + Math.PI / 2;
+                    const offsetX = Math.cos(perpAngle) * Math.sin(b.lifetime * 15) * 5;
+                    const offsetY = Math.sin(perpAngle) * Math.sin(b.lifetime * 15) * 5;
+                    b.x += Math.cos(b.angle) * b.speed * dt + offsetX;
+                    b.y += Math.sin(b.angle) * b.speed * dt + offsetY;
+                } else {
+                    b.x += Math.cos(b.angle) * b.speed * dt;
+                    b.y += Math.sin(b.angle) * b.speed * dt;
+                }
+                
+                if (player.bulletEffects.includes('log_decay')) {
+                    b.size = Math.max(2, b.initialSize * (1 - Math.log1p(b.lifetime * 2)));
+                }
+                if (player.bulletEffects.includes('exponential')) {
+                    b.size = Math.min(40, b.initialSize * Math.exp(b.lifetime * 0.5));
+                }
+
+                if (player.bulletEffects.includes('homing')) {
+                    const closestEnemy = findClosestEnemy(b.x, b.y);
+                    if (closestEnemy) {
+                        const targetAngle = Math.atan2(closestEnemy.y - b.y, closestEnemy.x - b.x);
+                        let angleDiff = targetAngle - b.angle;
+                        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                        b.angle += angleDiff * 2 * dt; // Adjust homing strength
+                    }
+                }
+
+
+                // Remove bullets that go off-screen
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    bullets.splice(index, 1);
+                }
+            });
+        }
+        
+        function updateEnemies(dt) {
+            enemies.forEach(e => {
+                if(e.frozenUntil && (Date.now() < e.frozenUntil || (player.bulletEffects.includes('absolute_zero') && !e.isBoss))) return;
+                e.frozenUntil = null;
+
+                let currentSpeed = e.speed;
+                if (e.slowedUntil && Date.now() < e.slowedUntil) {
+                    currentSpeed *= 0.5; // 50% slow
+                } else {
+                    e.slowedUntil = null;
+                }
+
+                const dx = player.x - e.x;
+                const dy = player.y - e.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 1) {
+                    e.x += (dx / dist) * currentSpeed * dt;
+                    e.y += (dy / dist) * currentSpeed * dt;
+                }
+
+                // Add wall collision for enemies
+                e.x = Math.max(ROOM_PADDING, Math.min(e.x, canvas.width - ROOM_PADDING - e.width));
+                e.y = Math.max(ROOM_PADDING, Math.min(e.y, canvas.height - ROOM_PADDING - e.height));
+
+                // Handle shooting for ranged enemies
+                if (e.type === 'ranged' && Date.now() > e.lastShotTime + e.fireRate) {
+                    e.lastShotTime = Date.now();
+                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage));
+                }
+            });
+        }
+        
+        function updateEnemyBullets(dt) {
+            enemyBullets.forEach((b, index) => {
+                b.x += Math.cos(b.angle) * b.speed * dt;
+                b.y += Math.sin(b.angle) * b.speed * dt;
+
+                // Remove bullets that go off-screen
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    enemyBullets.splice(index, 1);
+                }
+            });
+        }
+        
+        function updateExplosions(dt) {
+            explosions.forEach((exp, index) => {
+                exp.lifetime -= dt;
+                if (exp.lifetime <= 0) {
+                    explosions.splice(index, 1);
+                }
+            });
+        }
+        
+        function checkCollisions() {
+             // Bullets with enemies
+            bullets.forEach((bullet, bIndex) => {
+                enemies.forEach((enemy, eIndex) => {
+                    if (bullet.x < enemy.x + enemy.width && bullet.x + bullet.size > enemy.x &&
+                        bullet.y < enemy.y + enemy.height && bullet.y + bullet.size > enemy.y) {
+                        
+                        let isCrit = Math.random() < player.critChance;
+                        let damageDealt = player.damage * (isCrit ? player.critDamage : 1);
+                        enemy.health -= damageDealt;
+                        
+                        // Handle bullet effects on hit
+                        if (player.bulletEffects.includes('blizzard') && Math.random() < 0.25) {
+                            enemy.frozenUntil = Date.now() + 2000;
+                        }
+                        if (player.bulletEffects.includes('thunderstorm') && Math.random() < 0.3) {
+                            chainLightning(enemy, 2);
+                        }
+                        if (player.bulletEffects.includes('gravity_well')) {
+                            enemy.slowedUntil = Date.now() + 3000; // Slow for 3 seconds
+                        }
+                        if (player.bulletEffects.includes('unstable_ordinance') && Math.random() < 0.2) { // 20% chance to explode
+                            createExplosion(bullet.x, bullet.y, 80, player.damage * 0.5); // 80px radius, 50% damage
+                        }
+
+                        if (!player.bulletEffects.includes('piercing') || bullet.pierced) {
+                           bullets.splice(bIndex, 1);
+                        } else {
+                           bullet.pierced = true;
+                        }
+
+                        if (enemy.health <= 0) {
+                            enemies.splice(eIndex, 1);
+                        }
+                    }
+                });
+            });
+
+            // Bullets with walls
+             bullets.forEach(bullet => {
+                if (player.bulletEffects.includes('ricochet') && !bullet.bounced) {
+                    if (bullet.x <= ROOM_PADDING || bullet.x >= canvas.width - ROOM_PADDING - bullet.size) {
+                        bullet.angle = Math.PI - bullet.angle;
+                        bullet.bounced = true;
+                    }
+                    if (bullet.y <= ROOM_PADDING || bullet.y >= canvas.height - ROOM_PADDING - bullet.size) {
+                        bullet.angle = -bullet.angle;
+                        bullet.bounced = true;
+                    }
+                }
+             });
+
+
+            // Player with enemies or enemy bullets
+            let tookDamage = false;
+            let damageAmount = 0;
+            if (!player.invincible) {
+                // Direct collision with enemies
+                enemies.forEach(enemy => {
+                    if (player.x < enemy.x + enemy.width && player.x + player.width > enemy.x &&
+                        player.y < enemy.y + enemy.height && player.y + player.height > enemy.y) {
+                        damageAmount = enemy.damage;
+                        tookDamage = true;
+                    }
+                });
+
+                // Collision with enemy bullets
+                enemyBullets.forEach((bullet, bIndex) => {
+                    if (player.x < bullet.x + bullet.size && player.x + player.width > bullet.x &&
+                        player.y < bullet.y + bullet.size && player.y + player.height > bullet.y) {
+                        damageAmount = bullet.damage;
+                        tookDamage = true;
+                        enemyBullets.splice(bIndex, 1);
+                    }
+                });
+
+                if (tookDamage) {
+                    player.health -= damageAmount;
+                    player.invincible = true;
+                    player.invincibilityEndTime = Date.now() + 5000; // 5 seconds of invincibility
+                    updateHUD();
+                    if (player.health <= 0) {
+                        gameOver();
+                    }
+                }
+            }
+        }
+        
+        function chainLightning(target, chainsLeft) {
+            if (chainsLeft <= 0) return;
+
+            const nextTarget = findClosestEnemy(target.x, target.y, target);
+            if (nextTarget) {
+                // You can draw a line here for visual effect if you want
+                nextTarget.health -= player.damage * 0.75; // Chain lightning does less damage
+                if (nextTarget.health <= 0) {
+                    enemies.splice(enemies.indexOf(nextTarget), 1);
+                }
+                chainLightning(nextTarget, chainsLeft - 1);
+            }
+        }
+        
+        // --- Drawing Functions ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawRoom();
+            drawPlayer();
+            enemies.forEach(drawEnemy);
+            bullets.forEach(drawBullet);
+            enemyBullets.forEach(drawEnemyBullet);
+            explosions.forEach(drawExplosion);
+        }
+
+        function drawPlayer() {
+            // Flash if invincible by skipping draw calls periodically
+            if (player.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
+                return;
+            }
+
+            // Duck body
+            ctx.fillStyle = '#FFD700'; // Yellow
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            // Duck beak
+            ctx.fillStyle = '#FFA500'; // Orange
+            // Determine beak position based on last movement or shot direction
+            let lastDirX = keys['d'] ? 1 : (keys['a'] ? -1 : 0);
+            let lastDirY = keys['s'] ? 1 : (keys['w'] ? -1 : 0);
+            if (keys['arrowright']) lastDirX = 1;
+            if (keys['arrowleft']) lastDirX = -1;
+            if (keys['arrowdown']) lastDirY = 1;
+            if (keys['arrowup']) lastDirY = -1;
+            
+            if(lastDirX === 0 && lastDirY === 0) lastDirX = 1; // Default facing right
+
+            if (lastDirX !== 0) {
+                ctx.fillRect(player.x + (lastDirX > 0 ? player.width : -10), player.y + player.height / 4, 10, player.height / 2);
+            } else if (lastDirY !== 0) {
+                 ctx.fillRect(player.x + player.width / 4, player.y + (lastDirY > 0 ? player.height : -10), player.width / 2, 10);
+            }
+        }
+
+        function drawEnemy(enemy) {
+            ctx.fillStyle = enemy.frozenUntil ? '#ADD8E6' : enemy.color;
+            ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+            
+            // Health bar
+            if(enemy.health < enemy.maxHealth) {
+                ctx.fillStyle = '#dc2626'; // red-600
+                ctx.fillRect(enemy.x, enemy.y - 10, enemy.width, 5);
+                ctx.fillStyle = '#4ade80'; // green-400
+                ctx.fillRect(enemy.x, enemy.y - 10, enemy.width * (enemy.health / enemy.maxHealth), 5);
+            }
+        }
+
+        function drawBullet(bullet) {
+            ctx.fillStyle = '#00BFFF'; // DeepSkyBlue
+            ctx.beginPath();
+            ctx.arc(bullet.x + bullet.size / 2, bullet.y + bullet.size / 2, bullet.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function drawEnemyBullet(bullet) {
+            ctx.fillStyle = '#f56565'; // red-500
+            ctx.beginPath();
+            ctx.arc(bullet.x + bullet.size / 2, bullet.y + bullet.size / 2, bullet.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function drawRoom() {
+            // Walls
+            ctx.strokeStyle = '#4a5568'; // gray-700
+            ctx.lineWidth = DOOR_THICKNESS;
+            ctx.strokeRect(ROOM_PADDING, ROOM_PADDING, canvas.width - ROOM_PADDING * 2, canvas.height - ROOM_PADDING * 2);
+
+            // Doors
+            doors.forEach(d => {
+                ctx.fillStyle = d.open ? '#2d3748' : '#718096';
+                if (d.open && enemies.length === 0) {
+                     ctx.fillStyle = '#2d3748';
+                     ctx.shadowColor = 'cyan';
+                     ctx.shadowBlur = 15;
+                }
+                
+                ctx.fillRect(d.x, d.y, d.width, d.height);
+                ctx.shadowBlur = 0; // Reset shadow
+            });
+        }
+        
+        function drawExplosion(exp) {
+            const progress = exp.lifetime / 0.3; // 0.3 is initial lifetime
+            ctx.fillStyle = `rgba(255, 165, 0, ${progress * 0.8})`; // Orange, fades out
+            ctx.beginPath();
+            const currentRadius = exp.maxRadius * (1 - progress); // Expands from 0 to maxRadius
+            ctx.arc(exp.x, exp.y, currentRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function updateHUD() {
+            hud.health.textContent = `${Math.ceil(player.health)} / ${player.maxHealth}`;
+            hud.floor.textContent = floor;
+            hud.inventory.textContent = player.inventory.join(', ');
+        }
+        
+        // --- Game State Management ---
+        function startGame() {
+            startScreen.classList.add('hidden');
+            gameState = 'playing';
+            init();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function levelClear() {
+            gameState = 'item_selection';
+            lastTime = 0; // Reset delta time calculation
+            showItemSelection();
+        }
+
+        function gameOver() {
+            gameState = 'game_over';
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function winGame() {
+            gameState = 'post_boss';
+            postBossScreen.classList.remove('hidden');
+        }
+
+        function showItemSelection() {
+            const itemChoicesContainer = document.getElementById('item-choices');
+            itemChoicesContainer.innerHTML = '';
+            
+            let itemPool = endlessMode ? [...ITEMS, ...ENDLESS_ITEMS] : ITEMS;
+            const availableItems = itemPool.filter(item => !player.inventory.includes(item.name));
+            const choices = [];
+            for (let i = 0; i < 3; i++) {
+                if (availableItems.length === 0) break;
+                const randomIndex = Math.floor(Math.random() * availableItems.length);
+                choices.push(availableItems[randomIndex]);
+                availableItems.splice(randomIndex, 1);
+            }
+
+            choices.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                card.innerHTML = `<h3 class="text-lg font-bold mb-2">${item.name}</h3><p class="text-sm">${item.description}</p>`;
+                card.onclick = () => {
+                    itemSelectionScreen.classList.add('hidden');
+                    selectItem(item);
+                };
+                itemChoicesContainer.appendChild(card);
+            });
+
+            itemSelectionScreen.classList.remove('hidden');
+        }
+
+        function selectItem(item) {
+            item.effect(player);
+            if (item.type !== 'stat' && !player.inventory.includes(item.name)) {
+                 player.inventory.push(item.name);
+            }
+            nextLevel();
+            gameLoop(performance.now()); // Restart the game loop
+        }
+
+
+        // --- Helper Functions ---
+        function createEnemy(x, y) {
+            const health = 20 + floor * 10 * (endlessMode ? floor / 5 : 1);
+            const damage = 5 + floor * 2 * (endlessMode ? floor / 10 : 1);
+            return {
+                x, y,
+                width: ENEMY_SIZE,
+                height: ENEMY_SIZE,
+                speed: 50 + Math.random() * 50 + floor * 5,
+                health: health,
+                maxHealth: health,
+                damage: damage,
+                color: '#f56565', // red-500
+                type: 'melee'
+            };
+        }
+        
+        function createRangedEnemy(x, y) {
+            const enemy = createEnemy(x,y);
+            enemy.color = '#ed8936'; // orange-500
+            enemy.type = 'ranged';
+            enemy.speed *= 0.7; // Ranged enemies are a bit slower
+            enemy.fireRate = 3000 - (floor * 50);
+            enemy.lastShotTime = Date.now() + Math.random() * 2000; // Stagger initial shots
+            return enemy;
+        }
+        
+        function createBoss() {
+            const health = 200 + floor * 40 * (endlessMode ? floor / 5 : 1);
+            const damage = 20 + floor * 3 * (endlessMode ? floor / 10 : 1);
+            return {
+                x: canvas.width / 2 - 50, y: ROOM_PADDING + 20,
+                width: 100,
+                height: 100,
+                speed: 40 + floor * 4,
+                health: health,
+                maxHealth: health,
+                damage: damage,
+                color: floor === 10 ? '#9f7aea' : '#dd6b20', // purple-600 for final, orange-600 otherwise
+                isBoss: true
+            };
+        }
+
+        function createBullet(x, y, angle) {
+            const bullet = {
+                x: x - BULLET_SIZE / 2,
+                y: y - BULLET_SIZE / 2,
+                size: BULLET_SIZE,
+                initialSize: BULLET_SIZE,
+                speed: 500,
+                angle: angle,
+                lifetime: 0
+            };
+            bullets.push(bullet);
+        }
+
+        function createExplosion(x, y, radius, damage) {
+            // Add to explosions array for drawing
+            explosions.push({x, y, maxRadius: radius, lifetime: 0.3});
+
+            // Damage enemies in radius
+            enemies.forEach(enemy => {
+                const dist = Math.hypot((enemy.x + enemy.width / 2) - x, (enemy.y + enemy.height / 2) - y);
+                if (dist < radius + enemy.width / 2) { // Add enemy width for better collision
+                    enemy.health -= damage;
+                }
+            });
+        }
+
+        function createEnemyBullet(x, y, angle, damage) {
+             return {
+                x: x,
+                y: y,
+                size: 12,
+                speed: 250,
+                angle: angle,
+                damage: damage
+            };
+        }
+
+        function findClosestEnemy(x, y, exclude = null) {
+            let closest = null;
+            let closestDist = Infinity;
+            enemies.forEach(e => {
+                if (e === exclude) return;
+                const dist = Math.hypot(e.x - x, e.y - y);
+                if (dist < closestDist) {
+                    closest = e;
+                    closestDist = dist;
+                }
+            });
+            return closest;
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            startGame();
         });
-
-        jumpSlider.addEventListener('input', (e) => {
-            lift = -parseFloat(e.target.value);
-            jumpValue.textContent = (-lift).toFixed(1);
+        playAgainButton.addEventListener('click', () => {
+            winScreen.classList.add('hidden');
+            startGame();
         });
-
-        speedSlider.addEventListener('input', (e) => {
-            gameSpeed = parseFloat(e.target.value);
-            speedValue.textContent = gameSpeed.toFixed(1);
+        finishGameButton.addEventListener('click', () => {
+            postBossScreen.classList.add('hidden');
+            winScreen.classList.remove('hidden');
         });
-
-        pipeFreqSlider.addEventListener('input', (e) => {
-            pipeFrequency = parseInt(e.target.value);
-            pipeFreqValue.textContent = pipeFrequency;
+        continueGameButton.addEventListener('click', () => {
+            postBossScreen.classList.add('hidden');
+            endlessMode = true;
+            nextLevel();
+            gameLoop(performance.now());
         });
-
-        birdSizeSlider.addEventListener('input', (e) => {
-            birdSizeMultiplier = parseFloat(e.target.value);
-            birdSizeValue.textContent = birdSizeMultiplier.toFixed(2);
-        });
-
-        hitboxSlider.addEventListener('input', (e) => {
-            hitboxPadding = parseInt(e.target.value);
-            hitboxValue.textContent = hitboxPadding;
-        });
-
-        initialWaitSlider.addEventListener('input', (e) => {
-            initialPipeWait = parseInt(e.target.value);
-            initialWaitValue.textContent = initialPipeWait;
-        });
-
-        // Initial setup
-        resizeCanvas();
-
-        // Set initial physics values and display them
-        gravity = parseFloat(gravitySlider.value);
-        lift = -parseFloat(jumpSlider.value);
-        gameSpeed = parseFloat(speedSlider.value);
-        pipeFrequency = parseInt(pipeFreqSlider.value);
-        birdSizeMultiplier = parseFloat(birdSizeSlider.value);
-        hitboxPadding = parseInt(hitboxSlider.value);
-        initialPipeWait = parseInt(initialWaitSlider.value);
-        gravityValue.textContent = gravity.toFixed(2);
-        jumpValue.textContent = (-lift).toFixed(1);
-        speedValue.textContent = gameSpeed.toFixed(1);
-        pipeFreqValue.textContent = pipeFrequency;
-        birdSizeValue.textContent = birdSizeMultiplier.toFixed(2);
-        hitboxValue.textContent = hitboxPadding;
-        initialWaitValue.textContent = initialPipeWait;
     </script>
 </body>
 </html>
+
+
+
+
 
