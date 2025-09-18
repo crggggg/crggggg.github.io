@@ -1,933 +1,633 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
- <meta charset="UTF-8">
- <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>Weather Duck's Roguelike Adventure</title>
- <script src="https://cdn.tailwindcss.com"></script>
- <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
- <style>
- body {
- font-family: 'Press Start 2P', cursive;
- background-color: #1a202c; /* gray-900 */
- color: #f7fafc; /* gray-100 */
- overflow: hidden;
- display: flex;
- justify-content: center;
- align-items: center;
- min-height: 100vh;
- margin: 0;
- }
-
- canvas {
- background-color: #2d3748; /* gray-800 */
- border: 4px solid #4a5568; /* gray-700 */
- box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
- }
-
- .game-container {
- display: flex;
- flex-direction: column;
- align-items: center;
- gap: 1rem;
- }
-
- #hud {
- display: flex;
- justify-content: space-between;
- width: 100%;
- max-width: 800px;
- padding: 0 1rem;
- font-size: 0.9rem;
- }
-
- .modal {
- position: fixed;
- top: 0;
- left: 0;
- width: 100%;
- height: 100%;
- background-color: rgba(0, 0, 0, 0.8);
- display: flex;
- justify-content: center;
- align-items: center;
- z-index: 100;
- }
-
- .modal-content {
- background-color: #2d3748; /* gray-800 */
- padding: 2rem;
- border: 4px solid #4a5568; /* gray-700 */
- text-align: center;
- max-width: 90%;
- width: 600px;
- }
- 
- .item-card {
- background-color: #4a5568; /* gray-700 */
- border: 2px solid #718096; /* gray-600 */
- padding: 1rem;
- margin: 0.5rem;
- cursor: pointer;
- transition: all 0.2s ease-in-out;
- }
-
- .item-card:hover {
- background-color: #718096; /* gray-600 */
- border-color: #a0aec0; /* gray-500 */
- transform: translateY(-5px);
- }
-
- .button {
- background-color: #4299e1; /* blue-500 */
- color: white;
- padding: 0.75rem 1.5rem;
- border: none;
- cursor: pointer;
- font-family: 'Press Start 2P', cursive;
- text-transform: uppercase;
- margin-top: 1rem;
- }
- .button:hover {
- background-color: #3182ce; /* blue-600 */
- }
- </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Duck vs. IMT Lazarus</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            background-color: #87ceeb; /* Sky Blue */
+            display: block;
+            border: 4px solid #4a5568;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        .ui-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 800px;
+            padding: 10px;
+            background-color: #2d3748;
+            border-radius: 8px;
+            border: 4px solid #4a5568;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            font-size: 1.5rem;
+            z-index: 100;
+            display: none;
+            border: 4px solid #a0aec0;
+            min-width: 400px;
+        }
+        .button {
+            background-color: #48bb78;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            border-bottom: 4px solid #2f855a;
+            transition: all 0.1s ease-in-out;
+            font-size: 1rem;
+        }
+        .button:hover {
+            transform: translateY(2px);
+            border-bottom-width: 2px;
+        }
+        #physics-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            font-size: 0.7rem;
+        }
+        #physics-controls label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 8px;
+            background: #4a5568;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #a0aec0;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #level-select {
+            background-color: #4a5568;
+            border: 2px solid #a0aec0;
+            border-radius: 4px;
+            color: white;
+            padding: 4px;
+            font-family: 'Press Start 2P', cursive;
+        }
+    </style>
 </head>
-
 <body>
- <div id="game-container" class="game-container">
- <div id="hud">
- <div id="health-container">Health: <span id="health">100 / 100</span></div>
- <div id="floor-container">Floor: <span id="floor">1</span></div>
- <div id="timer-container">Time: <span id="timer">00:00.000</span></div>
- <div id="inventory-container">Inventory: <span id="inventory"></span></div>
- </div>
- <canvas id="gameCanvas"></canvas>
- </div>
 
- <div id="start-screen" class="modal">
- <div class="modal-content">
- <h1 class="text-3xl mb-4">Weather Duck's Adventure</h1>
- <p class="mb-6">IMT Lazarus has stolen the weather! Help the Weather Duck get it back.</p>
- <p class="mb-2 text-sm">WASD to Move</p>
- <p class="mb-6 text-sm">Arrow Keys to Shoot</p>
- <button id="start-button" class="button">Start Game</button>
- </div>
- </div>
+<div id="game-container">
+    <h1 class="text-3xl mb-2">Weather Duck vs. IMT Lazarus</h1>
+    <div id="ui-container" class="ui-panel">
+        <div id="timer" class="text-xl">Time: 0.000s</div>
+        <div class="text-lg">Controls: A/D or ←/→, W or ↑, R to restart</div>
+    </div>
+    <div id="controls-container" class="ui-panel">
+        <div id="physics-controls">
+            <label>Gravity: <span id="gravity-value">1.2</span><input type="range" id="gravity-slider" min="0.1" max="2" step="0.1" value="1.2"></label>
+            <label>Jump: <span id="jump-value">18</span><input type="range" id="jump-slider" min="5" max="25" step="1" value="18"></label>
+            <label>Speed: <span id="speed-value">12</span><input type="range" id="speed-slider" min="1" max="12" step="1" value="12"></label>
+        </div>
+        <div id="level-controls">
+            <label for="level-select">Level:</label>
+            <select id="level-select"></select>
+        </div>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="message-box">
+        <p id="message-text"></p>
+        <div class="flex justify-center gap-4 mt-4">
+             <button id="restart-button" class="button">Play Again</button>
+             <button id="next-level-button" class="button" style="display: none;">Next Level</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const timerElement = document.getElementById('timer');
+    const messageBox = document.getElementById('message-box');
+    const messageText = document.getElementById('message-text');
+    const restartButton = document.getElementById('restart-button');
+    const nextLevelButton = document.getElementById('next-level-button');
+    const levelSelect = document.getElementById('level-select');
+
+    // Physics Sliders
+    const gravitySlider = document.getElementById('gravity-slider');
+    const jumpSlider = document.getElementById('jump-slider');
+    const speedSlider = document.getElementById('speed-slider');
+    const gravityValue = document.getElementById('gravity-value');
+    const jumpValue = document.getElementById('jump-value');
+    const speedValue = document.getElementById('speed-value');
+
+    // Game constants
+    const PLAYER_WIDTH = 40;
+    const PLAYER_HEIGHT = 40;
+    const MS_PER_UPDATE = 1000 / 39; // ~39 FPS update rate (slower game speed, ~65% of original)
+
+    // Adjustable physics
+    let GRAVITY = 1.2;
+    let JUMP_FORCE = -18;
+    let PLAYER_SPEED = 12;
+
+    // Game state
+    let player, platforms, hazards, goal, keys, timer, gameRunning, currentLevelIndex;
+    
+    // Timer variables
+    let startTime = null;
+    let pauseStartTime = null;
+
+    // Game loop timing variables
+    let lastTime = 0;
+    let lag = 0.0;
+    
+    // Restart/Reset logic
+    let rKeyTimeout = null;
+
+    // Levels Data
+    const levels = [
+        { // Level 1: The Basics
+            start: {x: 50, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'platform' },
+                { x: 200, y: 500, width: 100, height: 20, type: 'platform' },
+                { x: 350, y: 420, width: 100, height: 20, type: 'platform' },
+                { x: 200, y: 340, width: 80, height: 20, type: 'platform' },
+                { x: 400, y: 280, width: 20, height: 20, type: 'platform' },
+                { x: 500, y: 220, width: 100, height: 20, type: 'platform' },
+                { x: 0, y: 200, width: 300, height: 20, type: 'hazard' },
+                { x: 50, y: 180, width: 50, height: 20, type: 'platform' },
+                { x: 200, y: 140, width: 50, height: 20, type: 'platform' },
+                { x: 400, y: 100, width: 250, height: 20, type: 'platform' },
+                { x: 700, y: 50, width: 100, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 2: Long Jumps
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 150, height: 20, type: 'platform' },
+                { x: 250, y: 540, width: 100, height: 20, type: 'platform' },
+                { x: 450, y: 500, width: 100, height: 20, type: 'platform' },
+                { x: 650, y: 460, width: 150, height: 20, type: 'platform' },
+                { x: 550, y: 360, width: 50, height: 20, type: 'platform' },
+                { x: 350, y: 300, width: 50, height: 20, type: 'platform' },
+                { x: 150, y: 240, width: 50, height: 20, type: 'platform' },
+                { x: 0, y: 180, width: 100, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 3: The Climb (REVISED)
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 100, height: 20, type: 'platform' },
+                { x: 150, y: 520, width: 50, height: 20, type: 'platform' },
+                { x: 30, y: 460, width: 50, height: 20, type: 'platform' },
+                { x: 150, y: 400, width: 50, height: 20, type: 'platform' },
+                { x: 30, y: 340, width: 50, height: 20, type: 'platform' },
+                { x: 180, y: 280, width: 50, height: 20, type: 'platform' }, // Easier jump
+                { x: 350, y: 220, width: 150, height: 20, type: 'platform' }, // Clearer path
+                { x: 600, y: 160, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 100, width: 50, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 4: The Floor is Lava
+            start: {x: 20, y: 400},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'hazard' },
+                { x: 0, y: 450, width: 100, height: 20, type: 'platform' },
+                { x: 150, y: 420, width: 20, height: 20, type: 'platform' },
+                { x: 220, y: 420, width: 20, height: 20, type: 'platform' },
+                { x: 290, y: 420, width: 20, height: 20, type: 'platform' },
+                { x: 380, y: 380, width: 100, height: 20, type: 'platform' },
+                { x: 380, y: 360, width: 20, height: 20, type: 'hazard' },
+                { x: 550, y: 320, width: 100, height: 20, type: 'platform' },
+                { x: 700, y: 260, width: 100, height: 20, type: 'platform' },
+                { x: 550, y: 200, width: 100, height: 20, type: 'platform' },
+                { x: 380, y: 140, width: 100, height: 20, type: 'platform' },
+                { x: 200, y: 80, width: 80, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 5: The Maze
+            start: {x: 380, y: 520},
+            layout: [
+                 { x: 350, y: 580, width: 100, height: 20, type: 'platform' },
+                 { x: 350, y: 500, width: 100, height: 20, type: 'platform' },
+                 { x: 250, y: 440, width: 300, height: 20, type: 'platform' },
+                 { x: 250, y: 380, width: 50, height: 20, type: 'platform' }, // Left path
+                 { x: 150, y: 320, width: 50, height: 20, type: 'platform' },
+                 { x: 0, y: 260, width: 100, height: 20, type: 'hazard' }, // Dead end
+                 { x: 500, y: 380, width: 50, height: 20, type: 'platform' }, // Right path
+                 { x: 600, y: 320, width: 50, height: 20, type: 'platform' },
+                 { x: 700, y: 260, width: 100, height: 20, type: 'platform' },
+                 { x: 700, y: 200, width: 50, height: 20, type: 'platform' },
+                 { x: 550, y: 140, width: 100, height: 20, type: 'platform' },
+                 { x: 350, y: 80, width: 100, height: 20, type: 'platform', goal: true },
+            ]
+        },
+         { // Level 6: Precision
+            start: {x: 20, y: 520},
+            layout: [
+                 { x: 0, y: 580, width: 80, height: 20, type: 'platform' },
+                 { x: 120, y: 550, width: 15, height: 20, type: 'platform' },
+                 { x: 180, y: 520, width: 15, height: 20, type: 'platform' },
+                 { x: 240, y: 490, width: 15, height: 20, type: 'platform' },
+                 { x: 180, y: 430, width: 15, height: 20, type: 'platform' },
+                 { x: 240, y: 370, width: 15, height: 20, type: 'platform' },
+                 { x: 350, y: 370, width: 100, height: 20, type: 'platform' },
+                 { x: 500, y: 400, width: 15, height: 20, type: 'hazard' },
+                 { x: 550, y: 340, width: 15, height: 20, type: 'platform' },
+                 { x: 600, y: 280, width: 15, height: 20, type: 'platform' },
+                 { x: 680, y: 220, width: 120, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 7: The Drop (NERFED)
+            start: {x: 380, y: 20},
+            layout: [
+                { x: 350, y: 80, width: 100, height: 20, type: 'platform' },
+                { x: 200, y: 180, width: 80, height: 20, type: 'platform' },
+                { x: 500, y: 180, width: 80, height: 20, type: 'platform' },
+                { x: 0, y: 250, width: 360, height: 10, type: 'hazard' }, // Wider gap
+                { x: 440, y: 250, width: 360, height: 10, type: 'hazard' }, // Wider gap
+                { x: 350, y: 320, width: 100, height: 20, type: 'platform' },
+                { x: 50, y: 400, width: 100, height: 20, type: 'platform' },
+                { x: 650, y: 400, width: 100, height: 20, type: 'platform' },
+                { x: 0, y: 580, width: 350, height: 20, type: 'platform' },
+                { x: 450, y: 580, width: 350, height: 20, type: 'platform' },
+                { x: 380, y: 520, width: 40, height: 20, type: 'platform', goal: true },
+            ]
+        },
+         { // Level 8: Risky Ascent
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'hazard' },
+                { x: 0, y: 560, width: 50, height: 20, type: 'platform' },
+                { x: 100, y: 500, width: 50, height: 20, type: 'platform' },
+                { x: 50, y: 440, width: 20, height: 20, type: 'hazard' },
+                { x: 200, y: 420, width: 100, height: 20, type: 'platform' },
+                { x: 350, y: 360, width: 100, height: 20, type: 'platform' },
+                { x: 250, y: 300, width: 20, height: 20, type: 'hazard' },
+                { x: 450, y: 280, width: 50, height: 20, type: 'platform' },
+                { x: 600, y: 220, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 160, width: 50, height: 20, type: 'platform' },
+                { x: 600, y: 100, width: 50, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 9: The Gauntlet
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'platform' },
+                { x: 100, y: 540, width: 600, height: 10, type: 'hazard' },
+                { x: 150, y: 500, width: 20, height: 20, type: 'platform' },
+                { x: 200, y: 460, width: 20, height: 20, type: 'platform' },
+                { x: 250, y: 500, width: 20, height: 20, type: 'platform' },
+                { x: 300, y: 460, width: 20, height: 20, type: 'platform' },
+                { x: 350, y: 500, width: 20, height: 20, type: 'platform' },
+                { x: 400, y: 460, width: 200, height: 20, type: 'platform' },
+                { x: 650, y: 420, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 380, width: 50, height: 20, type: 'platform' },
+                { x: 650, y: 320, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 260, width: 50, height: 20, type: 'platform' },
+                { x: 400, y: 200, width: 300, height: 20, type: 'platform' },
+                { x: 100, y: 150, width: 200, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 10: Final Battle
+            start: {x: 380, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'hazard' },
+                { x: 350, y: 560, width: 100, height: 20, type: 'platform' },
+                { x: 250, y: 480, width: 50, height: 20, type: 'platform' },
+                { x: 450, y: 480, width: 50, height: 20, type: 'platform' },
+                { x: 100, y: 400, width: 100, height: 10, type: 'hazard' },
+                { x: 600, y: 400, width: 100, height: 10, type: 'hazard' },
+                { x: 350, y: 380, width: 100, height: 20, type: 'platform' },
+                { x: 150, y: 300, width: 15, height: 20, type: 'platform' },
+                { x: 550, y: 300, width: 15, height: 20, type: 'platform' },
+                { x: 350, y: 220, width: 15, height: 20, type: 'platform' },
+                { x: 0, y: 150, width: 250, height: 20, type: 'platform' },
+                { x: 550, y: 150, width: 250, height: 20, type: 'platform' },
+                { x: 300, y: 80, width: 200, height: 20, type: 'platform', goal: true },
+            ]
+        },
+    ];
+
+    const playerProto = {
+        x: 100,
+        y: 500,
+        width: PLAYER_WIDTH,
+        height: PLAYER_HEIGHT,
+        velocityX: 0,
+        velocityY: 0,
+        onGround: false,
+
+        draw() {
+            ctx.fillStyle = '#FFD700'; // Yellow
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillStyle = '#FFA500'; // Orange
+            const beakX = this.velocityX >= 0 ? this.x + this.width : this.x - 10;
+            ctx.fillRect(beakX, this.y + this.height * 0.5, 10, 5);
+            ctx.fillStyle = '#000000'; // Black
+            const eyeX = this.velocityX > 0 ? this.x + this.width * 0.7 : this.x + this.width * 0.2;
+            ctx.fillRect(eyeX, this.y + this.height * 0.2, 5, 5);
+        },
+
+        update() {
+            if (keys['a'] || keys['ArrowLeft']) this.velocityX = -PLAYER_SPEED;
+            else if (keys['d'] || keys['ArrowRight']) this.velocityX = PLAYER_SPEED;
+            else this.velocityX = 0;
+
+            if ((keys['w'] || keys['ArrowUp']) && this.onGround) {
+                this.velocityY = JUMP_FORCE;
+                this.onGround = false;
+            }
+            
+            // Variable jump height: If moving up and jump key is released, apply more gravity
+            if (this.velocityY < 0 && !(keys['w'] || keys['ArrowUp'])) {
+                this.velocityY += GRAVITY * 2.5;
+            } else {
+                this.velocityY += GRAVITY;
+            }
+
+            this.x += this.velocityX;
+            this.y += this.velocityY;
+            this.onGround = false;
+
+            if (this.x < 0) this.x = 0;
+            if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+            if (this.y > canvas.height) endGame(false);
+        }
+    };
+
+    function drawGameObjects() {
+        ctx.fillStyle = '#654321'; // Brown for platforms
+        platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
+
+        ctx.fillStyle = '#FF0000'; // Red for hazards
+        hazards.forEach(h => ctx.fillRect(h.x, h.y, h.width, h.height));
+
+        ctx.save();
+        ctx.fillStyle = '#4B0082'; // Indigo
+        ctx.shadowColor = 'rgba(255, 0, 255, 0.7)';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(goal.x, goal.y - 50, goal.width, goal.height + 50);
+        ctx.fillStyle = '#FF00FF'; // Magenta
+        ctx.fillRect(goal.x + 10, goal.y - 35, 10, 10);
+        ctx.fillRect(goal.x + goal.width - 20, goal.y - 35, 10, 10);
+        ctx.restore();
+    }
+    
+    function checkCollisions() {
+        platforms.forEach(p => {
+            if (player.x < p.x + p.width && player.x + player.width > p.x &&
+                player.y < p.y + p.height && player.y + player.height > p.y &&
+                player.velocityY >= 0 && player.y + player.height - player.velocityY <= p.y + 1) {
+                player.y = p.y - player.height;
+                player.velocityY = 0;
+                player.onGround = true;
+            }
+        });
+        
+        hazards.forEach(h => {
+             if (player.x < h.x + h.width && player.x + player.width > h.x &&
+                player.y < h.y + h.height && player.y + player.height > h.y) {
+                 endGame(false);
+             }
+        });
+        
+        if (player.x < goal.x + goal.width && player.x + player.width > goal.x &&
+            player.y < goal.y + goal.height && player.y + player.height > goal.y) {
+            endGame(true);
+        }
+    }
+    
+    function updateGame() {
+        player.update();
+        checkCollisions();
+    }
+
+    function renderGame() {
+        let timePassed = 0;
+        if (startTime) {
+            timePassed = (new Date() - startTime) / 1000;
+        }
+        timer = timePassed; // For use in the final message
+        timerElement.textContent = `Time: ${timePassed.toFixed(3)}s`;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGameObjects();
+        player.draw();
+    }
+    
+    function gameLoop(currentTime) {
+        if (!gameRunning) {
+            lastTime = 0; // Reset for the next run
+            return;
+        }
+        
+        if (lastTime === 0) {
+            lastTime = currentTime;
+        }
+
+        const elapsed = currentTime - lastTime;
+        lastTime = currentTime;
+        lag += elapsed;
+        
+        while (lag >= MS_PER_UPDATE) {
+            updateGame();
+            lag -= MS_PER_UPDATE;
+        }
+        
+        renderGame();
+        
+        requestAnimationFrame(gameLoop);
+    }
+    
+    function loadLevel(levelIndex) {
+        // When resuming from a menu, adjust start time to account for the pause
+        if (pauseStartTime && startTime) {
+            const pausedDuration = new Date() - pauseStartTime;
+            startTime.setTime(startTime.getTime() + pausedDuration);
+            pauseStartTime = null;
+        }
+
+        currentLevelIndex = levelIndex;
+        const levelData = levels[levelIndex];
+
+        player = Object.create(playerProto);
+        player.x = levelData.start.x;
+        player.y = levelData.start.y;
+        player.velocityX = 0;
+        player.velocityY = 0;
+        player.onGround = false;
+
+        platforms = levelData.layout.filter(item => item.type === 'platform');
+        hazards = levelData.layout.filter(item => item.type === 'hazard');
+        
+        const goalPlatform = levelData.layout.find(item => item.goal);
+        goal = { x: goalPlatform.x + goalPlatform.width/2 - 20, y: goalPlatform.y - 50, width: 40, height: 50 };
+
+        keys = {};
+        gameRunning = true;
+        
+        messageBox.style.display = 'none';
+        nextLevelButton.style.display = 'none';
+        restartButton.textContent = 'Play Again';
+        levelSelect.selectedIndex = levelIndex;
+        
+        // Reset loop timing variables and start the loop
+        lastTime = 0;
+        lag = 0.0;
+        requestAnimationFrame(gameLoop);
+    }
+    
+    function endGame(win) {
+        if (!gameRunning) return; // Prevent multiple calls
+        gameRunning = false;
+        pauseStartTime = new Date(); // Record when the game paused
+        
+        if (win) {
+            const isLastLevel = currentLevelIndex === levels.length - 1;
+            messageText.innerHTML = isLastLevel ? `YOU BEAT THE GAME!<br>Final Time: ${timer.toFixed(3)}s` : `LEVEL ${currentLevelIndex + 1} COMPLETE!<br>Time: ${timer.toFixed(3)}s`;
+            messageBox.style.borderColor = '#48bb78';
+            if (isLastLevel) {
+                restartButton.textContent = 'New Game';
+            } else {
+                nextLevelButton.style.display = 'inline-block';
+            }
+        } else {
+            messageText.innerHTML = `GAME OVER!<br>Try again!`;
+            messageBox.style.borderColor = '#e53e3e';
+        }
+        messageBox.style.display = 'block';
+    }
+    
+    function resetGame() {
+        startTime = null;
+        pauseStartTime = null;
+        timerElement.textContent = 'Time: 0.000s';
+        loadLevel(0);
+    }
+    
+    function setupUI() {
+        // Level Selector
+        levels.forEach((_, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `Level ${index + 1}`;
+            levelSelect.appendChild(option);
+        });
+        levelSelect.addEventListener('change', (e) => {
+            resetGame();
+            loadLevel(parseInt(e.target.value));
+        });
+
+        // Physics Sliders
+        gravitySlider.addEventListener('input', (e) => {
+            GRAVITY = parseFloat(e.target.value);
+            gravityValue.textContent = GRAVITY.toFixed(1);
+        });
+        jumpSlider.addEventListener('input', (e) => {
+            JUMP_FORCE = -parseFloat(e.target.value);
+            jumpValue.textContent = e.target.value;
+        });
+        speedSlider.addEventListener('input', (e) => {
+            PLAYER_SPEED = parseFloat(e.target.value);
+            speedValue.textContent = e.target.value;
+        });
+
+        // Buttons
+        restartButton.addEventListener('click', () => {
+            if (restartButton.textContent === 'New Game') {
+                resetGame();
+            } else {
+                loadLevel(currentLevelIndex); // Restart current level, timer continues
+            }
+        });
+        nextLevelButton.addEventListener('click', () => loadLevel(currentLevelIndex + 1));
+
+        // Keyboard Listeners
+        window.addEventListener('keydown', e => { 
+            const key = e.key.toLowerCase();
+            keys[key] = true;
+            keys[e.key] = true; // Also store original case if needed
+
+            // Start timer on the first keypress of a run
+            if (gameRunning && !startTime && ['w', 'a', 'd', 'arrowup', 'arrowleft', 'arrowright'].includes(key)) {
+                startTime = new Date();
+            }
+
+            // Handle 'r' key press for restart/reset
+            if (key === 'r' && !e.repeat) { // e.repeat prevents re-triggering while held
+                rKeyTimeout = setTimeout(() => {
+                    // Held for 0.6s: reset whole game
+                    resetGame();
+                    rKeyTimeout = null; // Clear timeout reference
+                }, 600);
+            }
+        });
+        window.addEventListener('keyup', e => { 
+            const key = e.key.toLowerCase();
+            keys[key] = false; 
+            keys[e.key] = false;
+            
+            // Handle 'r' key release
+            if (key === 'r') {
+                if (rKeyTimeout) {
+                    // Released before 0.6s: restart level
+                    clearTimeout(rKeyTimeout);
+                    loadLevel(currentLevelIndex);
+                    rKeyTimeout = null;
+                }
+            }
+        });
+    }
+
+    // Start the game
+    window.onload = () => {
+        setupUI();
+        loadLevel(0); 
+    };
+
+</script>
 
- <div id="item-selection-screen" class="modal hidden">
- <div class="modal-content">
- <h2 class="text-2xl mb-4">Floor Cleared! Choose an Upgrade.</h2>
- <div id="item-choices" class="grid md:grid-cols-3 gap-4"></div>
- </div>
- </div>
- 
- <div id="game-over-screen" class="modal hidden">
- <div class="modal-content">
- <h2 class="text-3xl mb-4 text-red-500">GAME OVER</h2>
- <p class="mb-6">The weather remains in the clutches of IMT Lazarus...</p>
- <p class="mb-6">Time: <span id="final-time-game-over"></span></p>
- <button id="restart-button" class="button">Try Again</button>
- </div>
- </div>
-
- <div id="win-screen" class="modal hidden">
- <div class="modal-content">
- <h2 class="text-3xl mb-4 text-yellow-400">YOU WIN!</h2>
- <p class="mb-6">You defeated IMT Lazarus and restored the weather! The world is soggy and grateful.</p>
- <p class="mb-6">Final Time: <span id="final-time-win"></span></p>
- <button id="play-again-button" class="button">Play Again</button>
- </div>
- </div>
-
- <div id="post-boss-screen" class="modal hidden">
- <div class="modal-content">
- <h2 class="text-3xl mb-4 text-yellow-400">IMT Lazarus Defeated!</h2>
- <p class="mb-6">You have restored balance to the weather, but a strange power still emanates from the dungeon... Do you retire a hero, or press onward into the unknown?</p>
- <p class="mb-6">Time: <span id="final-time-post-boss"></span></p>
- <div class="flex justify-center gap-4">
- <button id="finish-game-button" class="button">Finish Game</button>
- <button id="continue-game-button" class="button">Continue Adventure</button>
- </div>
- </div>
- </div>
-
-
- <script>
- document.addEventListener('DOMContentLoaded', () => {
- const canvas = document.getElementById('gameCanvas');
- const ctx = canvas.getContext('2d');
-
- // UI Elements
- const hud = {
- health: document.getElementById('health'),
- floor: document.getElementById('floor'),
- inventory: document.getElementById('inventory'),
- timer: document.getElementById('timer')
- };
- const startScreen = document.getElementById('start-screen');
- const itemSelectionScreen = document.getElementById('item-selection-screen');
- const gameOverScreen = document.getElementById('game-over-screen');
- const winScreen = document.getElementById('win-screen');
- const postBossScreen = document.getElementById('post-boss-screen');
- const startButton = document.getElementById('start-button');
- const restartButton = document.getElementById('restart-button');
- const playAgainButton = document.getElementById('play-again-button');
- const finishGameButton = document.getElementById('finish-game-button');
- const continueGameButton = document.getElementById('continue-game-button');
- 
- // Game Constants
- const PLAYER_SIZE = 30;
- const ENEMY_SIZE = 30;
- const BULLET_SIZE = 10;
- const ROOM_PADDING = 50;
- const DOOR_WIDTH = 80;
- const DOOR_THICKNESS = 10;
- 
- let gameState = 'start'; // 'start', 'playing', 'item_selection', 'game_over', 'win'
-
- // Game State
- let player, enemies, bullets, enemyBullets, floor, keys = {}, lastShotTime, doors, endlessMode, explosions;
- let startTime, finalTime;
-
- // --- Item Definitions ---
- const ITEMS = [
- // Stat increases
- { name: 'Featherlight Boots', description: '+20% Speed', type: 'stat', effect: p => p.speed *= 1.2 },
- { name: 'Heavy Raincoat', description: '+25 Max Health', type: 'stat', effect: p => { p.maxHealth += 25; p.health += 25; }},
- { name: 'Stronger Wings', description: '+20% Damage', type: 'stat', effect: p => p.damage *= 1.2 },
- { name: 'Rapid-Fire Beak', description: '-20% Fire Delay', type: 'stat', effect: p => p.fireRate *= 0.8 },
- { name: 'Lucky Clover', description: '+10% Crit Chance', type: 'stat', effect: p => p.critChance += 0.1 },
- { name: 'Sharpened Beak', description: '+50% Crit Damage', type: 'stat', effect: p => p.critDamage += 0.5 },
-
- // Bullet effects
- { name: 'Thunderstorm', description: 'Bullets may chain lightning to nearby enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('thunderstorm') },
- { name: 'Blizzard', description: 'Bullets have a chance to freeze enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('blizzard') },
- { name: 'Ricochet Rain', description: 'Bullets bounce off walls once.', type: 'bullet_effect', effect: p => p.bulletEffects.push('ricochet') },
- { name: 'Homing Missiles', description: 'Bullets will seek out nearby enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('homing') },
- { name: 'Piercing Rounds', description: 'Bullets can pierce through one enemy.', type: 'bullet_effect', effect: p => p.bulletEffects.push('piercing') },
- { name: 'Gravity Well', description: 'Bullets temporarily slow enemies on hit.', type: 'bullet_effect', effect: p => p.bulletEffects.push('gravity_well') },
- { name: 'Unstable Ordinance', description: 'Bullets have a 20% chance to explode on impact.', type: 'bullet_effect', effect: p => p.bulletEffects.push('unstable_ordinance') },
- 
- // Math functions
- { name: 'Sine Wave Shot', description: 'Bullets travel in a sine wave pattern.', type: 'bullet_effect', effect: p => p.bulletEffects.push('sine_wave') },
- { name: 'Logarithmic Decay', description: 'Bullets shrink over their lifetime.', type: 'bullet_effect', effect: p => p.bulletEffects.push('log_decay') },
- { name: 'Exponential Growth', description: 'Bullets grow over their lifetime.', type: 'bullet_effect', effect: p => p.bulletEffects.push('exponential') },
-
- // Specials
- { name: 'Tangent Shot', description: 'Fire two additional bullets at slight angles.', type: 'special', effect: p => p.bulletEffects.push('tangent') },
- { name: 'Fibonacci Spiral', description: 'Fire a spiral of bullets occasionally.', type: 'special', effect: p => p.bulletEffects.push('fibonacci') },
- ];
-
- const ENDLESS_ITEMS = [
- { name: 'Gale Force Wings', description: '+50% Damage', type: 'stat', effect: p => p.damage *= 1.5 },
- { name: 'Storm God\'s Armor', description: '+100 Max Health', type: 'stat', effect: p => { p.maxHealth += 100; p.health += 100; }},
- { name: 'Hyper-Velocity Beak', description: '-30% Fire Delay', type: 'stat', effect: p => p.fireRate *= 0.7 },
- { name: 'Eye of the Hurricane', description: 'Fire bullets in 4 directions.', type: 'special', effect: p => p.bulletEffects.push('hurricane') },
- { name: 'Absolute Zero', description: 'Blizzard freeze is now permanent on non-bosses.', type: 'bullet_effect', effect: p => p.bulletEffects.push('absolute_zero') },
- ];
-
-
- // --- Initialization ---
- function init() {
- canvas.width = 800;
- canvas.height = 600;
-
- player = {
- x: canvas.width / 2 - PLAYER_SIZE / 2,
- y: canvas.height / 2 - PLAYER_SIZE / 2,
- width: PLAYER_SIZE,
- height: PLAYER_SIZE,
- speed: 250, // pixels per second
- health: 100,
- maxHealth: 100,
- damage: 10,
- fireRate: 500, // ms between shots
- critChance: 0.05,
- critDamage: 1.5,
- bulletEffects: [],
- inventory: [],
- invincible: false,
- invincibilityEndTime: 0
- };
-
- floor = 0;
- keys = {};
- lastShotTime = 0;
- lastTime = 0;
- endlessMode = false;
- explosions = [];
- 
- nextLevel();
- }
-
- function nextLevel() {
- floor++;
- player.x = canvas.width / 2 - PLAYER_SIZE / 2;
- player.y = canvas.height - ROOM_PADDING - PLAYER_SIZE - 20;
- 
- // Give player invincibility at the start of a new floor
- player.invincible = true;
- player.invincibilityEndTime = Date.now() + 3000; // 3 seconds
-
- generateRoom();
- gameState = 'playing';
- updateHUD();
- }
- 
- function generateRoom() {
- enemies = [];
- bullets = [];
- enemyBullets = [];
- explosions = [];
- let enemyCount = Math.floor(2 + floor * 1.5);
- if (endlessMode) {
- enemyCount = Math.floor(enemyCount * 1.5);
- }
- 
- if (floor % 5 === 0) { // Boss floor
- enemies.push(createBoss());
- } else {
- for (let i = 0; i < enemyCount; i++) {
- let x, y;
- do {
- x = ROOM_PADDING + Math.random() * (canvas.width - ROOM_PADDING * 2 - ENEMY_SIZE);
- y = ROOM_PADDING + Math.random() * (canvas.height - ROOM_PADDING * 2 - ENEMY_SIZE);
- } while (Math.hypot(x - player.x, y - player.y) < 200); // Don't spawn on top of player
- 
- // Add a chance for ranged enemies after floor 3
- if (floor > 3 && Math.random() < 0.3) {
- enemies.push(createRangedEnemy(x, y));
- } else {
- enemies.push(createEnemy(x, y));
- }
- }
- }
-
- doors = [
- { x: canvas.width / 2 - DOOR_WIDTH / 2, y: ROOM_PADDING, width: DOOR_WIDTH, height: DOOR_THICKNESS, open: false, side: 'top' },
- { x: canvas.width / 2 - DOOR_WIDTH / 2, y: canvas.height - ROOM_PADDING - DOOR_THICKNESS, width: DOOR_WIDTH, height: DOOR_THICKNESS, open: false, side: 'bottom' },
- { x: ROOM_PADDING, y: canvas.height / 2 - DOOR_WIDTH / 2, width: DOOR_THICKNESS, height: DOOR_WIDTH, open: false, side: 'left' },
- { x: canvas.width - ROOM_PADDING - DOOR_THICKNESS, y: canvas.height / 2 - DOOR_WIDTH / 2, width: DOOR_THICKNESS, height: DOOR_WIDTH, open: false, side: 'right' },
- ];
- }
-
- // --- Update Functions ---
-
- let lastTime = 0;
- function gameLoop(timestamp) {
- if (gameState === 'start' || gameState === 'game_over' || gameState === 'post_boss' || gameState === 'win') {
- return;
- }
- 
- const elapsedTime = performance.now() - startTime;
- updateTimer(elapsedTime);
-
- if (gameState === 'playing') {
- if (lastTime === 0) {
- lastTime = timestamp;
- }
- const deltaTime = (timestamp - lastTime) / 1000 || 0;
- lastTime = timestamp;
-
- updatePlayer(deltaTime);
- updateBullets(deltaTime);
- updateEnemies(deltaTime);
- updateEnemyBullets(deltaTime);
- updateExplosions(deltaTime);
- checkCollisions();
- }
-
- draw();
-
- requestAnimationFrame(gameLoop);
- }
-
- function updatePlayer(dt) {
- // Check for invincibility timeout
- if (player.invincible && Date.now() > player.invincibilityEndTime) {
- player.invincible = false;
- }
-
- // DEBUG: Kill all enemies
- if (keys['k']) {
- enemies = [];
- keys['k'] = false; // Reset key to prevent this from running every frame
- }
-
- let dx = 0;
- let dy = 0;
- if (keys['w']) dy -= 1;
- if (keys['s']) dy += 1;
- if (keys['a']) dx -= 1;
- if (keys['d']) dx += 1;
-
- if (dx !== 0 || dy !== 0) {
- const mag = Math.sqrt(dx * dx + dy * dy);
- dx /= mag;
- dy /= mag;
- 
- player.x += dx * player.speed * dt;
- player.y += dy * player.speed * dt;
- }
- 
- // Wall collision
- player.x = Math.max(ROOM_PADDING, Math.min(player.x, canvas.width - ROOM_PADDING - player.width));
- player.y = Math.max(ROOM_PADDING, Math.min(player.y, canvas.height - ROOM_PADDING - player.height));
- 
- // Check for level clear
- if (enemies.length === 0 && gameState === 'playing') {
- doors.forEach(d => d.open = true);
- 
- let enteredDoor = false;
- doors.forEach(d => {
- if (player.x < d.x + d.width && player.x + player.width > d.x &&
- player.y < d.y + d.height && player.y + player.height > d.y) {
- enteredDoor = true;
- }
- });
-
- if (enteredDoor) {
- if (floor === 10 && !endlessMode) { 
- winGame();
- return; // return from updatePlayer
- }
- levelClear();
- }
- }
- }
-
- function updateBullets(dt) {
- // Shooting
- const now = Date.now();
- if (now - lastShotTime > player.fireRate) {
- let shootDir = { x: 0, y: 0 };
- if (keys['arrowup']) shootDir.y = -1;
- if (keys['arrowdown']) shootDir.y = 1;
- if (keys['arrowleft']) shootDir.x = -1;
- if (keys['arrowright']) shootDir.x = 1;
-
- if (shootDir.x !== 0 || shootDir.y !== 0) {
- lastShotTime = now;
- const baseAngle = Math.atan2(shootDir.y, shootDir.x);
- 
- createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle);
-
- if (player.bulletEffects.includes('hurricane')) {
- for(let i = 1; i < 4; i++) {
- createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + i * Math.PI / 2);
- }
- }
- 
- if (player.bulletEffects.includes('tangent')) {
- createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + Math.PI / 8);
- createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle - Math.PI / 8);
- }
- if (player.bulletEffects.includes('fibonacci') && Math.random() < 0.1) {
- for(let i=0; i<8; i++){
- createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + i * (Math.PI / 4));
- }
- }
- }
- }
- 
- // Move bullets
- bullets.forEach((b, index) => {
- b.lifetime += dt;
-
- if (player.bulletEffects.includes('sine_wave')) {
- const perpAngle = b.angle + Math.PI / 2;
- const offsetX = Math.cos(perpAngle) * Math.sin(b.lifetime * 15) * 5;
- const offsetY = Math.sin(perpAngle) * Math.sin(b.lifetime * 15) * 5;
- b.x += Math.cos(b.angle) * b.speed * dt + offsetX;
- b.y += Math.sin(b.angle) * b.speed * dt + offsetY;
- } else {
- b.x += Math.cos(b.angle) * b.speed * dt;
- b.y += Math.sin(b.angle) * b.speed * dt;
- }
- 
- if (player.bulletEffects.includes('log_decay')) {
- b.size = Math.max(2, b.initialSize * (1 - Math.log1p(b.lifetime * 2)));
- }
- if (player.bulletEffects.includes('exponential')) {
- b.size = Math.min(40, b.initialSize * Math.exp(b.lifetime * 0.5));
- }
-
- if (player.bulletEffects.includes('homing')) {
- const closestEnemy = findClosestEnemy(b.x, b.y);
- if (closestEnemy) {
- const targetAngle = Math.atan2(closestEnemy.y - b.y, closestEnemy.x - b.x);
- let angleDiff = targetAngle - b.angle;
- while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
- while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
- b.angle += angleDiff * 2 * dt; // Adjust homing strength
- }
- }
-
-
- // Remove bullets that go off-screen
- if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
- bullets.splice(index, 1);
- }
- });
- }
- 
- function updateEnemies(dt) {
- enemies.forEach(e => {
- if(e.frozenUntil && (Date.now() < e.frozenUntil || (player.bulletEffects.includes('absolute_zero') && !e.isBoss))) return;
- e.frozenUntil = null;
-
- let currentSpeed = e.speed;
- if (e.slowedUntil && Date.now() < e.slowedUntil) {
- currentSpeed *= 0.5; // 50% slow
- } else {
- e.slowedUntil = null;
- }
-
- const dx = player.x - e.x;
- const dy = player.y - e.y;
- const dist = Math.sqrt(dx * dx + dy * dy);
- if (dist > 1) {
- e.x += (dx / dist) * currentSpeed * dt;
- e.y += (dy / dist) * currentSpeed * dt;
- }
-
- // Add wall collision for enemies
- e.x = Math.max(ROOM_PADDING, Math.min(e.x, canvas.width - ROOM_PADDING - e.width));
- e.y = Math.max(ROOM_PADDING, Math.min(e.y, canvas.height - ROOM_PADDING - e.height));
-
- // Handle shooting for ranged enemies
- if (e.type === 'ranged' && Date.now() > e.lastShotTime + e.fireRate) {
- e.lastShotTime = Date.now();
- const angle = Math.atan2(player.y - e.y, player.x - e.x);
- enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage));
- }
- });
- }
- 
- function updateEnemyBullets(dt) {
- enemyBullets.forEach((b, index) => {
- b.x += Math.cos(b.angle) * b.speed * dt;
- b.y += Math.sin(b.angle) * b.speed * dt;
-
- // Remove bullets that go off-screen
- if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
- enemyBullets.splice(index, 1);
- }
- });
- }
- 
- function updateExplosions(dt) {
- explosions.forEach((exp, index) => {
- exp.lifetime -= dt;
- if (exp.lifetime <= 0) {
- explosions.splice(index, 1);
- }
- });
- }
- 
- function checkCollisions() {
- // Bullets with enemies
- bullets.forEach((bullet, bIndex) => {
- enemies.forEach((enemy, eIndex) => {
- if (bullet.x < enemy.x + enemy.width && bullet.x + bullet.size > enemy.x &&
- bullet.y < enemy.y + enemy.height && bullet.y + bullet.size > enemy.y) {
- 
- let isCrit = Math.random() < player.critChance;
- let damageDealt = player.damage * (isCrit ? player.critDamage : 1);
- enemy.health -= damageDealt;
- 
- // Handle bullet effects on hit
- if (player.bulletEffects.includes('blizzard') && Math.random() < 0.25) {
- enemy.frozenUntil = Date.now() + 2000;
- }
- if (player.bulletEffects.includes('thunderstorm') && Math.random() < 0.3) {
- chainLightning(enemy, 2);
- }
- if (player.bulletEffects.includes('gravity_well')) {
- enemy.slowedUntil = Date.now() + 3000; // Slow for 3 seconds
- }
- if (player.bulletEffects.includes('unstable_ordinance') && Math.random() < 0.2) { // 20% chance to explode
- createExplosion(bullet.x, bullet.y, 80, player.damage * 0.5); // 80px radius, 50% damage
- }
-
- if (!player.bulletEffects.includes('piercing') || bullet.pierced) {
- bullets.splice(bIndex, 1);
- } else {
- bullet.pierced = true;
- }
-
- if (enemy.health <= 0) {
- enemies.splice(eIndex, 1);
- }
- }
- });
- });
-
- // Bullets with walls
- bullets.forEach(bullet => {
- if (player.bulletEffects.includes('ricochet') && !bullet.bounced) {
- if (bullet.x <= ROOM_PADDING || bullet.x >= canvas.width - ROOM_PADDING - bullet.size) {
- bullet.angle = Math.PI - bullet.angle;
- bullet.bounced = true;
- }
- if (bullet.y <= ROOM_PADDING || bullet.y >= canvas.height - ROOM_PADDING - bullet.size) {
- bullet.angle = -bullet.angle;
- bullet.bounced = true;
- }
- }
- });
-
-
- // Player with enemies or enemy bullets
- let tookDamage = false;
- let damageAmount = 0;
- if (!player.invincible) {
- // Direct collision with enemies
- enemies.forEach(enemy => {
- if (player.x < enemy.x + enemy.width && player.x + player.width > enemy.x &&
- player.y < enemy.y + enemy.height && player.y + player.height > enemy.y) {
- damageAmount = enemy.damage;
- tookDamage = true;
- }
- });
-
- // Collision with enemy bullets
- enemyBullets.forEach((bullet, bIndex) => {
- if (player.x < bullet.x + bullet.size && player.x + player.width > bullet.x &&
- player.y < bullet.y + bullet.size && player.y + player.height > bullet.y) {
- damageAmount = bullet.damage;
- tookDamage = true;
- enemyBullets.splice(bIndex, 1);
- }
- });
-
- if (tookDamage) {
- player.health -= damageAmount;
- player.invincible = true;
- player.invincibilityEndTime = Date.now() + 5000; // 5 seconds of invincibility
- updateHUD();
- if (player.health <= 0) {
- gameOver();
- }
- }
- }
- }
- 
- function chainLightning(target, chainsLeft) {
- if (chainsLeft <= 0) return;
-
- const nextTarget = findClosestEnemy(target.x, target.y, target);
- if (nextTarget) {
- // You can draw a line here for visual effect if you want
- nextTarget.health -= player.damage * 0.75; // Chain lightning does less damage
- if (nextTarget.health <= 0) {
- enemies.splice(enemies.indexOf(nextTarget), 1);
- }
- chainLightning(nextTarget, chainsLeft - 1);
- }
- }
- 
- // --- Drawing Functions ---
- function draw() {
- ctx.clearRect(0, 0, canvas.width, canvas.height);
- 
- drawRoom();
- drawPlayer();
- enemies.forEach(drawEnemy);
- bullets.forEach(drawBullet);
- enemyBullets.forEach(drawEnemyBullet);
- explosions.forEach(drawExplosion);
- }
-
- function drawPlayer() {
- // Flash if invincible by skipping draw calls periodically
- if (player.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
- return;
- }
-
- // Duck body
- ctx.fillStyle = '#FFD700'; // Yellow
- ctx.fillRect(player.x, player.y, player.width, player.height);
- // Duck beak
- ctx.fillStyle = '#FFA500'; // Orange
- // Determine beak position based on last movement or shot direction
- let lastDirX = keys['d'] ? 1 : (keys['a'] ? -1 : 0);
- let lastDirY = keys['s'] ? 1 : (keys['w'] ? -1 : 0);
- if (keys['arrowright']) lastDirX = 1;
- if (keys['arrowleft']) lastDirX = -1;
- if (keys['arrowdown']) lastDirY = 1;
- if (keys['arrowup']) lastDirY = -1;
- 
- if(lastDirX === 0 && lastDirY === 0) lastDirX = 1; // Default facing right
-
- if (lastDirX !== 0) {
- ctx.fillRect(player.x + (lastDirX > 0 ? player.width : -10), player.y + player.height / 4, 10, player.height / 2);
- } else if (lastDirY !== 0) {
- ctx.fillRect(player.x + player.width / 4, player.y + (lastDirY > 0 ? player.height : -10), player.width / 2, 10);
- }
- }
-
- function drawEnemy(enemy) {
- ctx.fillStyle = enemy.frozenUntil ? '#ADD8E6' : enemy.color;
- ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
- 
- // Health bar
- if(enemy.health < enemy.maxHealth) {
- ctx.fillStyle = '#dc2626'; // red-600
- ctx.fillRect(enemy.x, enemy.y - 10, enemy.width, 5);
- ctx.fillStyle = '#4ade80'; // green-400
- ctx.fillRect(enemy.x, enemy.y - 10, enemy.width * (enemy.health / enemy.maxHealth), 5);
- }
- }
-
- function drawBullet(bullet) {
- ctx.fillStyle = '#00BFFF'; // DeepSkyBlue
- ctx.beginPath();
- ctx.arc(bullet.x + bullet.size / 2, bullet.y + bullet.size / 2, bullet.size, 0, Math.PI * 2);
- ctx.fill();
- }
- 
- function drawEnemyBullet(bullet) {
- ctx.fillStyle = '#f56565'; // red-500
- ctx.beginPath();
- ctx.arc(bullet.x + bullet.size / 2, bullet.y + bullet.size / 2, bullet.size / 2, 0, Math.PI * 2);
- ctx.fill();
- }
- 
- function drawRoom() {
- // Walls
- ctx.strokeStyle = '#4a5568'; // gray-700
- ctx.lineWidth = DOOR_THICKNESS;
- ctx.strokeRect(ROOM_PADDING, ROOM_PADDING, canvas.width - ROOM_PADDING * 2, canvas.height - ROOM_PADDING * 2);
-
- // Doors
- doors.forEach(d => {
- ctx.fillStyle = d.open ? '#2d3748' : '#718096';
- if (d.open && enemies.length === 0) {
- ctx.fillStyle = '#2d3748';
- ctx.shadowColor = 'cyan';
- ctx.shadowBlur = 15;
- }
- 
- ctx.fillRect(d.x, d.y, d.width, d.height);
- ctx.shadowBlur = 0; // Reset shadow
- });
- }
- 
- function drawExplosion(exp) {
- const progress = exp.lifetime / 0.3; // 0.3 is initial lifetime
- ctx.fillStyle = `rgba(255, 165, 0, ${progress * 0.8})`; // Orange, fades out
- ctx.beginPath();
- const currentRadius = exp.maxRadius * (1 - progress); // Expands from 0 to maxRadius
- ctx.arc(exp.x, exp.y, currentRadius, 0, Math.PI * 2);
- ctx.fill();
- }
- 
- function updateHUD() {
- hud.health.textContent = `${Math.ceil(player.health)} / ${player.maxHealth}`;
- hud.floor.textContent = floor;
- hud.inventory.textContent = player.inventory.join(', ');
- }
- 
- function updateTimer(elapsedTime) {
- hud.timer.textContent = formatTime(elapsedTime);
- }
-
- // --- Game State Management ---
- function startGame() {
- startScreen.classList.add('hidden');
- gameState = 'playing';
- startTime = performance.now();
- init();
- requestAnimationFrame(gameLoop);
- }
- 
- function levelClear() {
- gameState = 'item_selection';
- lastTime = 0; // Reset delta time calculation
- showItemSelection();
- }
-
- function gameOver() {
- gameState = 'game_over';
- finalTime = performance.now() - startTime;
- document.getElementById('final-time-game-over').textContent = formatTime(finalTime);
- gameOverScreen.classList.remove('hidden');
- }
-
- function winGame() {
- gameState = 'post_boss';
- finalTime = performance.now() - startTime;
- document.getElementById('final-time-post-boss').textContent = formatTime(finalTime);
- document.getElementById('final-time-win').textContent = formatTime(finalTime);
- postBossScreen.classList.remove('hidden');
- }
-
- function showItemSelection() {
- const itemChoicesContainer = document.getElementById('item-choices');
- itemChoicesContainer.innerHTML = '';
- 
- let itemPool = endlessMode ? [...ITEMS, ...ENDLESS_ITEMS] : ITEMS;
- const availableItems = itemPool.filter(item => !player.inventory.includes(item.name));
- const choices = [];
- for (let i = 0; i < 3; i++) {
- if (availableItems.length === 0) break;
- const randomIndex = Math.floor(Math.random() * availableItems.length);
- choices.push(availableItems[randomIndex]);
- availableItems.splice(randomIndex, 1);
- }
-
- choices.forEach(item => {
- const card = document.createElement('div');
- card.className = 'item-card';
- card.innerHTML = `<h3 class="text-lg font-bold mb-2">${item.name}</h3><p class="text-sm">${item.description}</p>`;
- card.onclick = () => {
- itemSelectionScreen.classList.add('hidden');
- selectItem(item);
- };
- itemChoicesContainer.appendChild(card);
- });
-
- itemSelectionScreen.classList.remove('hidden');
- }
-
- function selectItem(item) {
- item.effect(player);
- if (item.type !== 'stat' && !player.inventory.includes(item.name)) {
- player.inventory.push(item.name);
- }
- nextLevel();
- }
-
-
- // --- Helper Functions ---
- function createEnemy(x, y) {
- const health = 20 + floor * 10 * (endlessMode ? floor / 5 : 1);
- const damage = 5 + floor * 2 * (endlessMode ? floor / 10 : 1);
- return {
- x, y,
- width: ENEMY_SIZE,
- height: ENEMY_SIZE,
- speed: 50 + Math.random() * 50 + floor * 5,
- health: health,
- maxHealth: health,
- damage: damage,
- color: '#f56565', // red-500
- type: 'melee'
- };
- }
- 
- function createRangedEnemy(x, y) {
- const enemy = createEnemy(x,y);
- enemy.color = '#ed8936'; // orange-500
- enemy.type = 'ranged';
- enemy.speed *= 0.7; // Ranged enemies are a bit slower
- enemy.fireRate = 3000 - (floor * 50);
- enemy.lastShotTime = Date.now() + Math.random() * 2000; // Stagger initial shots
- return enemy;
- }
- 
- function createBoss() {
- const health = 200 + floor * 40 * (endlessMode ? floor / 5 : 1);
- const damage = 20 + floor * 3 * (endlessMode ? floor / 10 : 1);
- return {
- x: canvas.width / 2 - 50, y: ROOM_PADDING + 20,
- width: 100,
- height: 100,
- speed: 40 + floor * 4,
- health: health,
- maxHealth: health,
- damage: damage,
- color: floor === 10 ? '#9f7aea' : '#dd6b20', // purple-600 for final, orange-600 otherwise
- isBoss: true
- };
- }
-
- function createBullet(x, y, angle) {
- const bullet = {
- x: x - BULLET_SIZE / 2,
- y: y - BULLET_SIZE / 2,
- size: BULLET_SIZE,
- initialSize: BULLET_SIZE,
- speed: 500,
- angle: angle,
- lifetime: 0
- };
- bullets.push(bullet);
- }
-
- function createExplosion(x, y, radius, damage) {
- // Add to explosions array for drawing
- explosions.push({x, y, maxRadius: radius, lifetime: 0.3});
-
- // Damage enemies in radius
- enemies.forEach(enemy => {
- const dist = Math.hypot((enemy.x + enemy.width / 2) - x, (enemy.y + enemy.height / 2) - y);
- if (dist < radius + enemy.width / 2) { // Add enemy width for better collision
- enemy.health -= damage;
- }
- });
- }
-
- function createEnemyBullet(x, y, angle, damage) {
- return {
- x: x,
- y: y,
- size: 12,
- speed: 250,
- angle: angle,
- damage: damage
- };
- }
-
- function findClosestEnemy(x, y, exclude = null) {
- let closest = null;
- let closestDist = Infinity;
- enemies.forEach(e => {
- if (e === exclude) return;
- const dist = Math.hypot(e.x - x, e.y - y);
- if (dist < closestDist) {
- closest = e;
- closestDist = dist;
- }
- });
- return closest;
- }
-
- function formatTime(ms) {
- const minutes = Math.floor(ms / 60000);
- const seconds = Math.floor((ms % 60000) / 1000);
- const milliseconds = Math.floor(ms % 1000);
- return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
- }
-
- // --- Event Listeners ---
- window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
- window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
-
- startButton.addEventListener('click', startGame);
- restartButton.addEventListener('click', () => {
- gameOverScreen.classList.add('hidden');
- startGame();
- });
- playAgainButton.addEventListener('click', () => {
- winScreen.classList.add('hidden');
- startGame();
- });
- finishGameButton.addEventListener('click', () => {
- postBossScreen.classList.add('hidden');
- winScreen.classList.remove('hidden');
- });
- continueGameButton.addEventListener('click', () => {
- postBossScreen.classList.add('hidden');
- endlessMode = true;
- nextLevel();
- lastTime = 0;
- requestAnimationFrame(gameLoop);
- });
- });
- </script>
 </body>
 </html>
+
