@@ -29,7 +29,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem; /* Reduced gap */
         }
         .ui-panel {
             display: flex;
@@ -40,6 +40,10 @@
             background-color: #2d3748;
             border-radius: 8px;
             border: 4px solid #4a5568;
+        }
+        #times-panel {
+             font-size: 0.8rem;
+             justify-content: space-around;
         }
         #message-box {
             position: absolute;
@@ -108,15 +112,28 @@
             padding: 4px;
             font-family: 'Press Start 2P', cursive;
         }
+        .new-record {
+            color: #f6e05e; /* yellow-400 */
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <h1 class="text-3xl mb-2">Weather Duck vs. IMT Lazarus</h1>
+    <h1 class="text-3xl">Weather Duck vs. IMT Lazarus</h1>
     <div id="ui-container" class="ui-panel">
         <div id="timer" class="text-xl">Time: 0.000s</div>
-        <div class="text-lg">Controls: A/D or ←/→, W or ↑, R to restart</div>
+        <div class="text-lg">Controls: A/D or ←/→, W or ↑, R</div>
+    </div>
+    <div id="times-panel" class="ui-panel">
+        <div id="best-full-run">Best Full Run: --</div>
+        <div id="sum-of-best">Sum of Best: --</div>
+        <div id="level-best">Level Best: --</div>
     </div>
     <div id="controls-container" class="ui-panel">
         <div id="physics-controls">
@@ -125,7 +142,7 @@
             <label>Speed: <span id="speed-value">12</span><input type="range" id="speed-slider" min="1" max="12" step="1" value="12"></label>
         </div>
         <div id="level-controls">
-            <label for="level-select">Level:</label>
+            <label for="level-select">Mode:</label>
             <select id="level-select"></select>
         </div>
     </div>
@@ -150,6 +167,9 @@
     const restartButton = document.getElementById('restart-button');
     const nextLevelButton = document.getElementById('next-level-button');
     const levelSelect = document.getElementById('level-select');
+    const bestFullRunElement = document.getElementById('best-full-run');
+    const sumOfBestElement = document.getElementById('sum-of-best');
+    const levelBestElement = document.getElementById('level-best');
 
     // Physics Sliders
     const gravitySlider = document.getElementById('gravity-slider');
@@ -162,7 +182,7 @@
     // Game constants
     const PLAYER_WIDTH = 40;
     const PLAYER_HEIGHT = 40;
-    const MS_PER_UPDATE = 1000 / 39; // ~39 FPS update rate (slower game speed, ~65% of original)
+    const MS_PER_UPDATE = 1000 / 39;
 
     // Adjustable physics
     let GRAVITY = 1.2;
@@ -171,11 +191,15 @@
 
     // Game state
     let player, platforms, hazards, goal, keys, timer, gameRunning, currentLevelIndex;
+    let gameMode = 'full'; // 'full' or 'training'
+    let bestTimes;
+    let currentRunSplits = [];
     
     // Timer variables
-    let startTime = null;
-    let pauseStartTime = null;
-
+    let mainTimerInterval;
+    let levelStartTime = 0;
+    let lastAttemptStartTime = 0;
+    
     // Game loop timing variables
     let lastTime = 0;
     let lag = 0.0;
@@ -284,8 +308,8 @@
                 { x: 350, y: 80, width: 100, height: 20, type: 'platform' },
                 { x: 200, y: 180, width: 80, height: 20, type: 'platform' },
                 { x: 500, y: 180, width: 80, height: 20, type: 'platform' },
-                { x: 0, y: 250, width: 360, height: 10, type: 'hazard' }, // Wider gap
-                { x: 440, y: 250, width: 360, height: 10, type: 'hazard' }, // Wider gap
+                { x: 0, y: 250, width: 350, height: 10, type: 'hazard' }, // Wider gap
+                { x: 450, y: 250, width: 350, height: 10, type: 'hazard' }, // Wider gap
                 { x: 350, y: 320, width: 100, height: 20, type: 'platform' },
                 { x: 50, y: 400, width: 100, height: 20, type: 'platform' },
                 { x: 650, y: 400, width: 100, height: 20, type: 'platform' },
@@ -350,46 +374,24 @@
     ];
 
     const playerProto = {
-        x: 100,
-        y: 500,
-        width: PLAYER_WIDTH,
-        height: PLAYER_HEIGHT,
-        velocityX: 0,
-        velocityY: 0,
-        onGround: false,
-
+        x: 100, y: 500, width: PLAYER_WIDTH, height: PLAYER_HEIGHT, velocityX: 0, velocityY: 0, onGround: false,
         draw() {
-            ctx.fillStyle = '#FFD700'; // Yellow
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            ctx.fillStyle = '#FFA500'; // Orange
+            ctx.fillStyle = '#FFD700'; ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillStyle = '#FFA500';
             const beakX = this.velocityX >= 0 ? this.x + this.width : this.x - 10;
             ctx.fillRect(beakX, this.y + this.height * 0.5, 10, 5);
-            ctx.fillStyle = '#000000'; // Black
+            ctx.fillStyle = '#000000';
             const eyeX = this.velocityX > 0 ? this.x + this.width * 0.7 : this.x + this.width * 0.2;
             ctx.fillRect(eyeX, this.y + this.height * 0.2, 5, 5);
         },
-
         update() {
             if (keys['a'] || keys['ArrowLeft']) this.velocityX = -PLAYER_SPEED;
             else if (keys['d'] || keys['ArrowRight']) this.velocityX = PLAYER_SPEED;
             else this.velocityX = 0;
-
-            if ((keys['w'] || keys['ArrowUp']) && this.onGround) {
-                this.velocityY = JUMP_FORCE;
-                this.onGround = false;
-            }
-            
-            // Variable jump height: If moving up and jump key is released, apply more gravity
-            if (this.velocityY < 0 && !(keys['w'] || keys['ArrowUp'])) {
-                this.velocityY += GRAVITY * 2.5;
-            } else {
-                this.velocityY += GRAVITY;
-            }
-
-            this.x += this.velocityX;
-            this.y += this.velocityY;
-            this.onGround = false;
-
+            if ((keys['w'] || keys['ArrowUp']) && this.onGround) { this.velocityY = JUMP_FORCE; this.onGround = false; }
+            if (this.velocityY < 0 && !(keys['w'] || keys['ArrowUp'])) { this.velocityY += GRAVITY * 2.5; } 
+            else { this.velocityY += GRAVITY; }
+            this.x += this.velocityX; this.y += this.velocityY; this.onGround = false;
             if (this.x < 0) this.x = 0;
             if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
             if (this.y > canvas.height) endGame(false);
@@ -397,20 +399,13 @@
     };
 
     function drawGameObjects() {
-        ctx.fillStyle = '#654321'; // Brown for platforms
-        platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
-
-        ctx.fillStyle = '#FF0000'; // Red for hazards
-        hazards.forEach(h => ctx.fillRect(h.x, h.y, h.width, h.height));
-
+        ctx.fillStyle = '#654321'; platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
+        ctx.fillStyle = '#FF0000'; hazards.forEach(h => ctx.fillRect(h.x, h.y, h.width, h.height));
         ctx.save();
-        ctx.fillStyle = '#4B0082'; // Indigo
-        ctx.shadowColor = 'rgba(255, 0, 255, 0.7)';
-        ctx.shadowBlur = 15;
+        ctx.fillStyle = '#4B0082'; ctx.shadowColor = 'rgba(255, 0, 255, 0.7)'; ctx.shadowBlur = 15;
         ctx.fillRect(goal.x, goal.y - 50, goal.width, goal.height + 50);
-        ctx.fillStyle = '#FF00FF'; // Magenta
-        ctx.fillRect(goal.x + 10, goal.y - 35, 10, 10);
-        ctx.fillRect(goal.x + goal.width - 20, goal.y - 35, 10, 10);
+        ctx.fillStyle = '#FF00FF';
+        ctx.fillRect(goal.x + 10, goal.y - 35, 10, 10); ctx.fillRect(goal.x + goal.width - 20, goal.y - 35, 10, 10);
         ctx.restore();
     }
     
@@ -419,119 +414,109 @@
             if (player.x < p.x + p.width && player.x + player.width > p.x &&
                 player.y < p.y + p.height && player.y + player.height > p.y &&
                 player.velocityY >= 0 && player.y + player.height - player.velocityY <= p.y + 1) {
-                player.y = p.y - player.height;
-                player.velocityY = 0;
-                player.onGround = true;
+                player.y = p.y - player.height; player.velocityY = 0; player.onGround = true;
             }
         });
-        
         hazards.forEach(h => {
              if (player.x < h.x + h.width && player.x + player.width > h.x &&
-                player.y < h.y + h.height && player.y + player.height > h.y) {
-                 endGame(false);
-             }
+                player.y < h.y + h.height && player.y + player.height > h.y) { endGame(false); }
         });
-        
         if (player.x < goal.x + goal.width && player.x + player.width > goal.x &&
-            player.y < goal.y + goal.height && player.y + player.height > goal.y) {
-            endGame(true);
-        }
+            player.y < goal.y + goal.height && player.y + player.height > goal.y) { endGame(true); }
     }
     
-    function updateGame() {
-        player.update();
-        checkCollisions();
-    }
+    function updateGame() { player.update(); checkCollisions(); }
 
     function renderGame() {
-        let timePassed = 0;
-        if (startTime) {
-            timePassed = (new Date() - startTime) / 1000;
-        }
-        timer = timePassed; // For use in the final message
-        timerElement.textContent = `Time: ${timePassed.toFixed(3)}s`;
-        
+        let now = performance.now();
+        timer = (now - levelStartTime) / 1000;
+        timerElement.textContent = `Time: ${timer.toFixed(3)}s`;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawGameObjects();
         player.draw();
     }
     
     function gameLoop(currentTime) {
-        if (!gameRunning) {
-            lastTime = 0; // Reset for the next run
-            return;
-        }
-        
-        if (lastTime === 0) {
-            lastTime = currentTime;
-        }
-
+        if (!gameRunning) { lastTime = 0; return; }
+        if (lastTime === 0) { lastTime = currentTime; }
         const elapsed = currentTime - lastTime;
         lastTime = currentTime;
         lag += elapsed;
-        
-        while (lag >= MS_PER_UPDATE) {
-            updateGame();
-            lag -= MS_PER_UPDATE;
-        }
-        
+        while (lag >= MS_PER_UPDATE) { updateGame(); lag -= MS_PER_UPDATE; }
         renderGame();
-        
         requestAnimationFrame(gameLoop);
     }
     
-    function loadLevel(levelIndex) {
-        // When resuming from a menu, adjust start time to account for the pause
-        if (pauseStartTime && startTime) {
-            const pausedDuration = new Date() - pauseStartTime;
-            startTime.setTime(startTime.getTime() + pausedDuration);
-            pauseStartTime = null;
+    function loadLevel(levelIndex, isTraining = false) {
+        if (!isTraining) {
+            const timeSinceFullRunStart = (performance.now() - mainTimerInterval) / 1000;
+            const sumOfPreviousSplits = currentRunSplits.reduce((a, b) => a + b, 0);
+            levelStartTime = mainTimerInterval + (sumOfPreviousSplits * 1000);
+        } else {
+            levelStartTime = performance.now();
         }
-
+        lastAttemptStartTime = performance.now();
+       
         currentLevelIndex = levelIndex;
         const levelData = levels[levelIndex];
-
         player = Object.create(playerProto);
-        player.x = levelData.start.x;
-        player.y = levelData.start.y;
-        player.velocityX = 0;
-        player.velocityY = 0;
-        player.onGround = false;
-
+        player.x = levelData.start.x; player.y = levelData.start.y;
+        player.velocityX = 0; player.velocityY = 0; player.onGround = false;
         platforms = levelData.layout.filter(item => item.type === 'platform');
         hazards = levelData.layout.filter(item => item.type === 'hazard');
-        
         const goalPlatform = levelData.layout.find(item => item.goal);
         goal = { x: goalPlatform.x + goalPlatform.width/2 - 20, y: goalPlatform.y - 50, width: 40, height: 50 };
-
         keys = {};
         gameRunning = true;
-        
         messageBox.style.display = 'none';
         nextLevelButton.style.display = 'none';
         restartButton.textContent = 'Play Again';
-        levelSelect.selectedIndex = levelIndex;
-        
-        // Reset loop timing variables and start the loop
-        lastTime = 0;
-        lag = 0.0;
+        updateBestTimeDisplay();
+        lastTime = 0; lag = 0.0;
         requestAnimationFrame(gameLoop);
     }
     
     function endGame(win) {
-        if (!gameRunning) return; // Prevent multiple calls
+        if (!gameRunning) return;
         gameRunning = false;
-        pauseStartTime = new Date(); // Record when the game paused
         
         if (win) {
-            const isLastLevel = currentLevelIndex === levels.length - 1;
-            messageText.innerHTML = isLastLevel ? `YOU BEAT THE GAME!<br>Final Time: ${timer.toFixed(3)}s` : `LEVEL ${currentLevelIndex + 1} COMPLETE!<br>Time: ${timer.toFixed(3)}s`;
-            messageBox.style.borderColor = '#48bb78';
-            if (isLastLevel) {
-                restartButton.textContent = 'New Game';
-            } else {
-                nextLevelButton.style.display = 'inline-block';
+            const cleanLevelTime = (performance.now() - lastAttemptStartTime) / 1000;
+            let newRecord = false;
+            if (!bestTimes.levels[currentLevelIndex] || cleanLevelTime < bestTimes.levels[currentLevelIndex]) {
+                bestTimes.levels[currentLevelIndex] = cleanLevelTime;
+                newRecord = true;
+                saveBestTimes();
             }
+
+            let message = '';
+            if (newRecord) message += `<span class="new-record">New Record!</span><br>`;
+
+            if (gameMode === 'full') {
+                const dirtyLevelTime = (performance.now() - levelStartTime) / 1000;
+                currentRunSplits.push(dirtyLevelTime);
+                const isLastLevel = currentLevelIndex === levels.length - 1;
+                if (isLastLevel) {
+                    const fullRunTime = currentRunSplits.reduce((a, b) => a + b, 0);
+                    let newFullRecord = false;
+                    if (!bestTimes.fullRun || fullRunTime < bestTimes.fullRun) {
+                        bestTimes.fullRun = fullRunTime;
+                        newFullRecord = true;
+                        saveBestTimes();
+                    }
+                    message += `FULL RUN COMPLETE!<br>Final Time: ${fullRunTime.toFixed(3)}s`;
+                    if (newFullRecord) message += `<br><span class="new-record">New Best Full Run!</span>`;
+                    restartButton.textContent = 'New Game';
+                } else {
+                    message += `LEVEL ${currentLevelIndex + 1} COMPLETE!<br>Time: ${cleanLevelTime.toFixed(3)}s`;
+                    nextLevelButton.style.display = 'inline-block';
+                }
+            } else { // Training mode
+                message += `LEVEL COMPLETE!<br>Time: ${cleanLevelTime.toFixed(3)}s`;
+            }
+            messageText.innerHTML = message;
+            messageBox.style.borderColor = '#48bb78';
+
         } else {
             messageText.innerHTML = `GAME OVER!<br>Try again!`;
             messageBox.style.borderColor = '#e53e3e';
@@ -539,46 +524,80 @@
         messageBox.style.display = 'block';
     }
     
-    function resetGame() {
-        startTime = null;
-        pauseStartTime = null;
-        timerElement.textContent = 'Time: 0.000s';
+    function startFullGame() {
+        gameMode = 'full';
+        currentRunSplits = [];
+        mainTimerInterval = performance.now();
+        levelSelect.value = "full";
         loadLevel(0);
+    }
+
+    function startTrainingLevel(levelIndex) {
+        gameMode = 'training';
+        loadLevel(levelIndex, true);
+    }
+    
+    function saveBestTimes() {
+        localStorage.setItem('weatherDuckBestTimes', JSON.stringify(bestTimes));
+        updateBestTimeDisplay();
+    }
+
+    function updateBestTimeDisplay() {
+        const fullRun = bestTimes.fullRun ? `${bestTimes.fullRun.toFixed(3)}s` : '--';
+        bestFullRunElement.textContent = `Best Full Run: ${fullRun}`;
+        
+        const sumOfBest = bestTimes.levels.reduce((a, b) => a + (b || 0), 0);
+        sumOfBestElement.textContent = sumOfBest > 0 ? `Sum of Best: ${sumOfBest.toFixed(3)}s` : 'Sum of Best: --';
+        
+        const levelBest = bestTimes.levels[currentLevelIndex] ? `${bestTimes.levels[currentLevelIndex].toFixed(3)}s` : '--';
+        levelBestElement.textContent = `Level Best: ${levelBest}`;
     }
     
     function setupUI() {
+        // Load best times from localStorage
+        const savedTimes = localStorage.getItem('weatherDuckBestTimes');
+        if (savedTimes) {
+            bestTimes = JSON.parse(savedTimes);
+             // Ensure levels array is correct length if new levels are added
+            if (bestTimes.levels.length < levels.length) {
+                bestTimes.levels.push(...new Array(levels.length - bestTimes.levels.length).fill(null));
+            }
+        } else {
+            bestTimes = { fullRun: null, levels: new Array(levels.length).fill(null) };
+        }
+        
         // Level Selector
+        const fullGameOption = document.createElement('option');
+        fullGameOption.value = 'full';
+        fullGameOption.textContent = 'Full Game';
+        levelSelect.appendChild(fullGameOption);
         levels.forEach((_, index) => {
             const option = document.createElement('option');
             option.value = index;
-            option.textContent = `Level ${index + 1}`;
+            option.textContent = `Train Lv ${index + 1}`;
             levelSelect.appendChild(option);
         });
         levelSelect.addEventListener('change', (e) => {
-            resetGame();
-            loadLevel(parseInt(e.target.value));
+            if (e.target.value === 'full') {
+                startFullGame();
+            } else {
+                startTrainingLevel(parseInt(e.target.value));
+            }
         });
 
         // Physics Sliders
-        gravitySlider.addEventListener('input', (e) => {
-            GRAVITY = parseFloat(e.target.value);
-            gravityValue.textContent = GRAVITY.toFixed(1);
-        });
-        jumpSlider.addEventListener('input', (e) => {
-            JUMP_FORCE = -parseFloat(e.target.value);
-            jumpValue.textContent = e.target.value;
-        });
-        speedSlider.addEventListener('input', (e) => {
-            PLAYER_SPEED = parseFloat(e.target.value);
-            speedValue.textContent = e.target.value;
-        });
+        gravitySlider.addEventListener('input', (e) => { GRAVITY = parseFloat(e.target.value); gravityValue.textContent = GRAVITY.toFixed(1); });
+        jumpSlider.addEventListener('input', (e) => { JUMP_FORCE = -parseFloat(e.target.value); jumpValue.textContent = e.target.value; });
+        speedSlider.addEventListener('input', (e) => { PLAYER_SPEED = parseFloat(e.target.value); speedValue.textContent = e.target.value; });
 
         // Buttons
         restartButton.addEventListener('click', () => {
             if (restartButton.textContent === 'New Game') {
-                resetGame();
+                startFullGame();
+            } else if (gameMode === 'training') {
+                startTrainingLevel(currentLevelIndex);
             } else {
-                loadLevel(currentLevelIndex); // Restart current level, timer continues
+                loadLevel(currentLevelIndex);
             }
         });
         nextLevelButton.addEventListener('click', () => loadLevel(currentLevelIndex + 1));
@@ -586,36 +605,22 @@
         // Keyboard Listeners
         window.addEventListener('keydown', e => { 
             const key = e.key.toLowerCase();
-            keys[key] = true;
-            keys[e.key] = true; // Also store original case if needed
-
-            // Start timer on the first keypress of a run
-            if (gameRunning && !startTime && ['w', 'a', 'd', 'arrowup', 'arrowleft', 'arrowright'].includes(key)) {
-                startTime = new Date();
-            }
-
-            // Handle 'r' key press for restart/reset
-            if (key === 'r' && !e.repeat) { // e.repeat prevents re-triggering while held
-                rKeyTimeout = setTimeout(() => {
-                    // Held for 0.6s: reset whole game
-                    resetGame();
-                    rKeyTimeout = null; // Clear timeout reference
-                }, 600);
+            keys[key] = true; keys[e.key] = true;
+            if (key === 'r' && !e.repeat) {
+                rKeyTimeout = setTimeout(() => { startFullGame(); rKeyTimeout = null; }, 600);
             }
         });
         window.addEventListener('keyup', e => { 
             const key = e.key.toLowerCase();
-            keys[key] = false; 
-            keys[e.key] = false;
-            
-            // Handle 'r' key release
-            if (key === 'r') {
-                if (rKeyTimeout) {
-                    // Released before 0.6s: restart level
-                    clearTimeout(rKeyTimeout);
+            keys[key] = false; keys[e.key] = false;
+            if (key === 'r' && rKeyTimeout) {
+                clearTimeout(rKeyTimeout);
+                if(gameMode === 'training') {
+                    startTrainingLevel(currentLevelIndex);
+                } else {
                     loadLevel(currentLevelIndex);
-                    rKeyTimeout = null;
                 }
+                rKeyTimeout = null;
             }
         });
     }
@@ -623,11 +628,11 @@
     // Start the game
     window.onload = () => {
         setupUI();
-        loadLevel(0); 
+        startFullGame(); 
     };
-
 </script>
 
 </body>
 </html>
+
 
