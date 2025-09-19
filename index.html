@@ -558,7 +558,12 @@
 
     function startTrainingLevel(levelIndex) {
         gameMode = 'training';
-        timerHasStarted = false;
+        // Only level 1 (in any mode) waits for input.
+        if (levelIndex === 0) {
+            timerHasStarted = false;
+        } else {
+            timerHasStarted = true;
+        }
         loadLevel(levelIndex, true);
     }
     
@@ -753,3 +758,5 @@
 
 </body>
 </html>
+
+
