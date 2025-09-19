@@ -210,13 +210,14 @@
     let player, platforms, hazards, goal, keys, timer, gameRunning, currentLevelIndex;
     let gameMode = 'full'; // 'full' or 'training'
     let bestTimes;
-    let currentRunSplits = [];
     let timerHasStarted = false;
     
     // Timer variables
     let mainTimerInterval;
     let levelStartTime = 0;
     let lastAttemptStartTime = 0;
+    let totalPausedTime = 0;
+    let pauseStartTime = 0;
     
     // Game loop timing variables
     let lastTime = 0;
@@ -451,7 +452,11 @@
         } else {
             let now = performance.now();
             const startTime = gameMode === 'full' ? mainTimerInterval : levelStartTime;
-            timer = (now - startTime) / 1000;
+            let elapsed = now - startTime;
+            if (gameMode === 'full') {
+                elapsed -= totalPausedTime;
+            }
+            timer = elapsed / 1000;
             timerElement.textContent = `Time: ${timer.toFixed(3)}s`;
         }
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -471,11 +476,15 @@
     }
     
     function loadLevel(levelIndex, isTraining = false) {
+        if (pauseStartTime > 0 && gameMode === 'full') {
+            totalPausedTime += performance.now() - pauseStartTime;
+            pauseStartTime = 0;
+        }
+
         if (timerHasStarted) {
-            if (!isTraining) {
-                const sumOfPreviousSplits = currentRunSplits.reduce((a, b) => a + b, 0);
-                levelStartTime = mainTimerInterval + (sumOfPreviousSplits * 1000);
-            } else {
+            // When training, we reset the level timer.
+            // In a full run, the main timer keeps going. We just reset the attempt timer.
+            if (isTraining) {
                 levelStartTime = performance.now();
             }
             lastAttemptStartTime = performance.now();
@@ -517,11 +526,9 @@
             if (newRecord) message += `<span class="new-record">New Record!</span><br>`;
 
             if (gameMode === 'full') {
-                const dirtyLevelTime = (performance.now() - levelStartTime) / 1000;
-                currentRunSplits.push(dirtyLevelTime);
                 const isLastLevel = currentLevelIndex === levels.length - 1;
                 if (isLastLevel) {
-                    const fullRunTime = (performance.now() - mainTimerInterval) / 1000;
+                    const fullRunTime = (performance.now() - mainTimerInterval - totalPausedTime) / 1000;
                     let newFullRecord = false;
                     if (!bestTimes.fullRun || fullRunTime < bestTimes.fullRun) {
                         bestTimes.fullRun = fullRunTime;
@@ -533,6 +540,7 @@
                     restartButton.textContent = 'New Game';
                 } else {
                     message += `LEVEL ${currentLevelIndex + 1} COMPLETE!<br>Time: ${cleanLevelTime.toFixed(3)}s`;
+                    pauseStartTime = performance.now(); // Start pause timer
                     nextLevelButton.style.display = 'inline-block';
                 }
             } else { // Training mode
@@ -550,8 +558,9 @@
     
     function startFullGame() {
         gameMode = 'full';
-        currentRunSplits = [];
         timerHasStarted = false;
+        totalPausedTime = 0;
+        pauseStartTime = 0;
         levelSelect.value = "full";
         loadLevel(0);
     }
@@ -758,5 +767,7 @@
 
 </body>
 </html>
+
+
 
 
