@@ -75,6 +75,15 @@
             transform: translateY(2px);
             border-bottom-width: 2px;
         }
+        .button.small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            border-bottom-width: 3px;
+        }
+        .button.small:hover {
+            transform: translateY(1px);
+            border-bottom-width: 2px;
+        }
         #physics-controls {
             display: flex;
             gap: 1rem;
@@ -112,6 +121,10 @@
             padding: 4px;
             font-family: 'Press Start 2P', cursive;
         }
+        [contenteditable="true"]:focus {
+            outline: 2px solid #f6e05e; /* yellow-400 */
+            background-color: #4a5568;
+        }
         .new-record {
             color: #f6e05e; /* yellow-400 */
             animation: pulse 1.5s infinite;
@@ -131,9 +144,9 @@
         <div class="text-lg">Controls: A/D or ←/→, W or ↑, R</div>
     </div>
     <div id="times-panel" class="ui-panel">
-        <div id="best-full-run">Best Full Run: --</div>
+        <div id="best-full-run" contenteditable="true">Best Full Run: --</div>
         <div id="sum-of-best">Sum of Best: --</div>
-        <div id="level-best">Level Best: --</div>
+        <div id="level-best" contenteditable="true">Level Best: --</div>
     </div>
     <div id="controls-container" class="ui-panel">
         <div id="physics-controls">
@@ -141,9 +154,11 @@
             <label>Jump: <span id="jump-value">18</span><input type="range" id="jump-slider" min="5" max="25" step="1" value="18"></label>
             <label>Speed: <span id="speed-value">12</span><input type="range" id="speed-slider" min="1" max="12" step="1" value="12"></label>
         </div>
-        <div id="level-controls">
+        <div id="level-controls" class="flex items-center gap-2">
             <label for="level-select">Mode:</label>
             <select id="level-select"></select>
+            <button id="import-button" class="button small">Import</button>
+            <button id="export-button" class="button small">Export</button>
         </div>
     </div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -170,6 +185,8 @@
     const bestFullRunElement = document.getElementById('best-full-run');
     const sumOfBestElement = document.getElementById('sum-of-best');
     const levelBestElement = document.getElementById('level-best');
+    const importButton = document.getElementById('import-button');
+    const exportButton = document.getElementById('export-button');
 
     // Physics Sliders
     const gravitySlider = document.getElementById('gravity-slider');
@@ -194,6 +211,7 @@
     let gameMode = 'full'; // 'full' or 'training'
     let bestTimes;
     let currentRunSplits = [];
+    let timerHasStarted = false;
     
     // Timer variables
     let mainTimerInterval;
@@ -428,9 +446,14 @@
     function updateGame() { player.update(); checkCollisions(); }
 
     function renderGame() {
-        let now = performance.now();
-        timer = (now - levelStartTime) / 1000;
-        timerElement.textContent = `Time: ${timer.toFixed(3)}s`;
+        if (!timerHasStarted) {
+            timerElement.textContent = `Time: 0.000s`;
+        } else {
+            let now = performance.now();
+            const startTime = gameMode === 'full' ? mainTimerInterval : levelStartTime;
+            timer = (now - startTime) / 1000;
+            timerElement.textContent = `Time: ${timer.toFixed(3)}s`;
+        }
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawGameObjects();
         player.draw();
@@ -448,14 +471,15 @@
     }
     
     function loadLevel(levelIndex, isTraining = false) {
-        if (!isTraining) {
-            const timeSinceFullRunStart = (performance.now() - mainTimerInterval) / 1000;
-            const sumOfPreviousSplits = currentRunSplits.reduce((a, b) => a + b, 0);
-            levelStartTime = mainTimerInterval + (sumOfPreviousSplits * 1000);
-        } else {
-            levelStartTime = performance.now();
+        if (timerHasStarted) {
+            if (!isTraining) {
+                const sumOfPreviousSplits = currentRunSplits.reduce((a, b) => a + b, 0);
+                levelStartTime = mainTimerInterval + (sumOfPreviousSplits * 1000);
+            } else {
+                levelStartTime = performance.now();
+            }
+            lastAttemptStartTime = performance.now();
         }
-        lastAttemptStartTime = performance.now();
        
         currentLevelIndex = levelIndex;
         const levelData = levels[levelIndex];
@@ -497,7 +521,7 @@
                 currentRunSplits.push(dirtyLevelTime);
                 const isLastLevel = currentLevelIndex === levels.length - 1;
                 if (isLastLevel) {
-                    const fullRunTime = currentRunSplits.reduce((a, b) => a + b, 0);
+                    const fullRunTime = (performance.now() - mainTimerInterval) / 1000;
                     let newFullRecord = false;
                     if (!bestTimes.fullRun || fullRunTime < bestTimes.fullRun) {
                         bestTimes.fullRun = fullRunTime;
@@ -527,13 +551,14 @@
     function startFullGame() {
         gameMode = 'full';
         currentRunSplits = [];
-        mainTimerInterval = performance.now();
+        timerHasStarted = false;
         levelSelect.value = "full";
         loadLevel(0);
     }
 
     function startTrainingLevel(levelIndex) {
         gameMode = 'training';
+        timerHasStarted = false;
         loadLevel(levelIndex, true);
     }
     
@@ -553,19 +578,64 @@
         levelBestElement.textContent = `Level Best: ${levelBest}`;
     }
     
+    function exportTimes() {
+        try {
+            const timesString = JSON.stringify(bestTimes);
+            const base64String = btoa(timesString);
+
+            const textArea = document.createElement("textarea");
+            textArea.value = base64String;
+            textArea.style.position = "fixed";
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            exportButton.textContent = 'Copied!';
+            setTimeout(() => {
+                exportButton.textContent = 'Export';
+            }, 1500);
+        } catch (err) {
+            console.error('Export error:', err);
+        }
+    }
+
+    function importTimes() {
+        const importedString = prompt("Paste your saved times string here:");
+        if (!importedString) return;
+
+        try {
+            const jsonString = atob(importedString);
+            const importedData = JSON.parse(jsonString);
+
+            if (importedData && typeof importedData.fullRun !== 'undefined' && Array.isArray(importedData.levels)) {
+                bestTimes = importedData;
+                if (bestTimes.levels.length < levels.length) {
+                    bestTimes.levels.push(...new Array(levels.length - bestTimes.levels.length).fill(null));
+                }
+                saveBestTimes();
+            } else {
+                throw new Error('Invalid data structure.');
+            }
+        } catch (err) {
+            console.error('Import error:', err);
+        }
+    }
+
     function setupUI() {
         // Load best times from localStorage
         const savedTimes = localStorage.getItem('weatherDuckBestTimes');
         if (savedTimes) {
             bestTimes = JSON.parse(savedTimes);
-             // Ensure levels array is correct length if new levels are added
             if (bestTimes.levels.length < levels.length) {
                 bestTimes.levels.push(...new Array(levels.length - bestTimes.levels.length).fill(null));
             }
         } else {
             bestTimes = { fullRun: null, levels: new Array(levels.length).fill(null) };
         }
-        
+
         // Level Selector
         const fullGameOption = document.createElement('option');
         fullGameOption.value = 'full';
@@ -601,10 +671,59 @@
             }
         });
         nextLevelButton.addEventListener('click', () => loadLevel(currentLevelIndex + 1));
+        importButton.addEventListener('click', importTimes);
+        exportButton.addEventListener('click', exportTimes);
+        
+        // Editable Times
+        bestFullRunElement.contentEditable = true;
+        levelBestElement.contentEditable = true;
+
+        const handleTimeEdit = (element, timeType) => {
+             const text = element.textContent;
+             const timeMatch = text.match(/(\d+\.?\d*)/);
+             if (timeMatch) {
+                 const newTime = parseFloat(timeMatch[1]);
+                 if (!isNaN(newTime) && newTime >= 0) {
+                     if (timeType === 'fullRun') {
+                         bestTimes.fullRun = newTime;
+                     } else if (timeType === 'level') {
+                         bestTimes.levels[currentLevelIndex] = newTime;
+                     }
+                     saveBestTimes();
+                     return;
+                 }
+             }
+             updateBestTimeDisplay();
+        };
+
+        bestFullRunElement.addEventListener('blur', () => handleTimeEdit(bestFullRunElement, 'fullRun'));
+        levelBestElement.addEventListener('blur', () => handleTimeEdit(levelBestElement, 'level'));
+
+        const preventEnterAndBlur = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+            }
+        };
+
+        bestFullRunElement.addEventListener('keydown', preventEnterAndBlur);
+        levelBestElement.addEventListener('keydown', preventEnterAndBlur);
+
 
         // Keyboard Listeners
         window.addEventListener('keydown', e => { 
             const key = e.key.toLowerCase();
+            
+            if (!timerHasStarted && ['w', 'a', 'd', 'arrowup', 'arrowleft', 'arrowright'].includes(key)) {
+                timerHasStarted = true;
+                const now = performance.now();
+                if (gameMode === 'full') {
+                    mainTimerInterval = now;
+                }
+                levelStartTime = now;
+                lastAttemptStartTime = now;
+            }
+            
             keys[key] = true; keys[e.key] = true;
             if (key === 'r' && !e.repeat) {
                 rKeyTimeout = setTimeout(() => { startFullGame(); rKeyTimeout = null; }, 600);
@@ -634,5 +753,3 @@
 
 </body>
 </html>
-
-
