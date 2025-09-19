@@ -8,9 +8,8 @@
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            background-color: #ffffff; /* Whited background */
+            background-color: #ffffff; /* White background */
             color: #1f2937; /* Dark gray text */
-            overflow: hidden; /* Prevent scrolling on the main page */
         }
         .game-card {
             background-color: #f9fafb; /* Very light gray */
@@ -46,15 +45,13 @@
             position: fixed;
             top: 0;
             left: 0;
-            background-color: rgba(255, 255, 255, 0.95); /* Semi-transparent white */
+            background-color: #ffffff; /* Solid white for fullscreen */
             z-index: 50;
-            padding: 2rem;
         }
         #game-frame {
             width: 100%;
-            height: calc(100% - 80px); /* Adjust height to make space for back button */
-            border: 2px solid #e5e7eb; /* Light gray border */
-            border-radius: 0; 
+            height: 100%;
+            border: none; 
             background-color: #ffffff;
         }
         .back-button {
@@ -62,12 +59,12 @@
             color: white;
             font-weight: 600;
             transition: background-color 0.2s;
-            position: absolute;
-            bottom: 1.5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            border-radius: 0;
+            position: fixed; /* Changed to fixed to float on top */
+            top: 1rem;
+            left: 1rem;
+            border-radius: 8px; /* Added some rounding */
             border: none;
+            z-index: 60; /* Ensure it's on top of the iframe */
         }
         .back-button:hover {
             background-color: #3b82f6; /* Lighter blue on hover */
@@ -99,7 +96,7 @@
                 <h2 class="text-gray-800">Weather ducks roguelike adventure</h2>
             </div>
 
-            <div class="game-card text-center" onclick="showGame('WDsPA')">
+            <div class="game-card text-center" onclick="showGame('weather_ducks_platformer.html')">
                  <img src="./images/weather_ducks_platformer.png" alt="Weather ducks platformer adventure" onerror="this.onerror=null;this.src='https://placehold.co/300x300/e5e7eb/4b5563?text=Platformer';">
                 <h2 class="text-gray-800">Weather ducks platformer adventure</h2>
             </div>
@@ -117,9 +114,9 @@
     </div>
 
     <!-- Game View (Container for the iframe) -->
-    <div id="game-view" class="game-view flex-col justify-center items-center">
-        <iframe id="game-frame" src="about:blank"></iframe>
-        <button class="back-button mt-4 px-6 py-3 text-xl" onclick="showMenu()">Back to Menu</button>
+    <div id="game-view" class="game-view">
+        <iframe id="game-frame" src="about:blank" allowfullscreen></iframe>
+        <button class="back-button px-6 py-3 text-xl" onclick="showMenu()">Back to Menu</button>
     </div>
 
     <script>
@@ -128,12 +125,14 @@
         const gameFrame = document.getElementById('game-frame');
 
         function showGame(gameUrl) {
+            document.body.style.overflow = 'hidden'; // Prevent scrolling behind the game
             gameMenu.style.display = 'none';
-            gameView.style.display = 'flex';
+            gameView.style.display = 'block';
             gameFrame.src = gameUrl; // Load the selected game's HTML file
         }
 
         function showMenu() {
+            document.body.style.overflow = ''; // Restore default scrolling
             gameMenu.style.display = 'block';
             gameView.style.display = 'none';
             gameFrame.src = 'about:blank'; // Unload the game to stop it from running
@@ -141,6 +140,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
