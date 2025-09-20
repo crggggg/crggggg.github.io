@@ -198,15 +198,13 @@
             // --- Math functions for the pipes ---
             const functions = {
                 'sine': (x, params) => params.amplitude * Math.sin(params.frequency * (x - params.xOffset)) + params.yOffset,
-                'parabola': (x, params) => params.a * Math.pow(x - params.xOffset, 2) + params.yOffset,
-                'cubic': (x, params) => params.a * Math.pow(x - params.xOffset, 3) + params.yOffset,
-                'absolute': (x, params) => params.a * Math.abs(x - params.xOffset) + params.yOffset,
-                'logarithmic': (x, params) => params.a * Math.log(x - params.xOffset) + params.yOffset,
-                'exponential': (x, params) => params.a * Math.exp(x * params.b + params.xOffset) + params.yOffset,
-                'sqrt': (x, params) => params.a * Math.sqrt(x - params.xOffset) + params.yOffset,
-                'tangent': (x, params) => params.a * Math.tan(params.b * (x - params.xOffset)) + params.yOffset,
-                'cbrt': (x, params) => params.a * Math.cbrt(x - params.xOffset) + params.yOffset,
-                'inverse': (x, params) => params.a / (x - params.xOffset) + params.yOffset,
+                'sumOfSines': (x, params) => {
+                    let y = params.yOffset;
+                    for (let i = 0; i < params.sines.length; i++) {
+                        y += params.sines[i].amplitude * Math.sin(params.sines[i].frequency * (x - params.xOffset));
+                    }
+                    return y;
+                }
             };
 
             // --- Game Logic Functions ---
@@ -285,72 +283,94 @@
                 // Spawn new pipes
                 pipeSpawnTimer++;
                 if (pipeSpawnTimer > pipeSpawnInterval) {
+                    let newPipe = generateValidPipe();
+                    if (newPipe) {
+                        pipes.push(newPipe);
+                        pipeSpawnTimer = 0;
+                    }
+                }
+            }
+
+            // Function to check if a generated pipe is passable
+            function isPassable(pipe) {
+                const margin = 20; // Ensure a small margin from the top and bottom of the screen
+                const minGap = bird.height * 1.5; // Minimum required gap for the bird
+                for (let i = 0; i < pipe.width; i++) {
+                    const pipeX = pipe.x + i;
+                    const topPipeY = pipe.topFunction(pipeX, pipe.params);
+                    const bottomPipeY = pipe.bottomFunction(pipeX, pipe.params);
+                    
+                    if (isNaN(topPipeY) || isNaN(bottomPipeY) || topPipeY < margin || bottomPipeY > canvas.height - margin || bottomPipeY <= topPipeY + minGap) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // New function to generate a pipe and validate its full path
+            function generateValidPipe() {
+                const maxAttempts = 100;
+                let attempts = 0;
+                while (attempts < maxAttempts) {
                     const funcNames = Object.keys(functions);
                     const funcName = funcNames[Math.floor(Math.random() * funcNames.length)];
                     const topFunction = functions[funcName];
 
-                    // Generate random parameters for the function
                     let params = {
                         xOffset: canvas.width,
                         yOffset: Math.random() * (canvas.height - 300) + 150
                     };
 
-                    switch(funcName) {
-                        case 'sine':
-                            params.amplitude = Math.random() * 50 + 30;
-                            params.frequency = (Math.random() * 0.05) + 0.01;
-                            break;
-                        case 'parabola':
-                            params.a = Math.random() * 0.005 * (Math.random() > 0.5 ? -1 : 1);
-                            params.xOffset = canvas.width + Math.random() * 100;
-                            break;
-                        case 'cubic':
-                            params.a = (Math.random() * 0.0001) * (Math.random() > 0.5 ? -1 : 1);
-                            params.xOffset = canvas.width + Math.random() * 100;
-                            break;
-                        case 'absolute':
-                            params.a = Math.random() * 0.5 + 0.1;
-                            params.xOffset = canvas.width + Math.random() * 100;
-                            break;
-                        case 'logarithmic':
-                            params.a = Math.random() * 50 + 20;
-                            params.xOffset = canvas.width - 50; // Ensure argument is positive
-                            break;
-                        case 'exponential':
-                            params.a = Math.random() * 10 + 5;
-                            params.b = (Math.random() * 0.01) + 0.005;
-                            params.xOffset = -(canvas.width / 2);
-                            break;
-                        case 'sqrt':
-                            params.a = Math.random() * 10 + 5;
-                            params.xOffset = canvas.width - 50; // Ensure argument is positive
-                            break;
-                        case 'tangent':
-                            params.a = Math.random() * 50 + 30;
-                            params.b = (Math.random() * 0.005) + 0.001; // Small frequency to avoid asymptotes
-                            params.xOffset = canvas.width + Math.random() * 100;
-                            break;
-                        case 'cbrt':
-                            params.a = Math.random() * 15 + 10;
-                            params.xOffset = canvas.width + Math.random() * 100;
-                            break;
-                        case 'inverse':
-                            params.a = Math.random() * 2000 + 500;
-                            params.xOffset = canvas.width + Math.random() * 100;
-                            break;
+                    if (funcName === 'sine') {
+                        params.amplitude = Math.random() * 50 + 30;
+                        params.frequency = (Math.random() * 0.05) + 0.01;
+                    } else if (funcName === 'sumOfSines') {
+                        params.sines = [];
+                        const numSines = Math.floor(Math.random() * 3) + 2; // 2 to 4 sines
+                        for (let i = 0; i < numSines; i++) {
+                            params.sines.push({
+                                amplitude: Math.random() * 20 + 10,
+                                frequency: (Math.random() * 0.02) + 0.005,
+                            });
+                        }
                     }
-
-                    pipes.push({
+                    
+                    const pipe = {
                         x: canvas.width,
                         width: pipeWidth,
-                        // Both top and bottom pipes now use a function
                         topFunction: topFunction,
-                        // The bottom pipe is a vertical translation of the top pipe's graph
                         bottomFunction: (x, p) => topFunction(x, p) + pipeGap,
                         params: params
-                    });
-                    pipeSpawnTimer = 0;
+                    };
+                    
+                    // Comprehensive validation: Check for passability across the entire screen
+                    let isValid = true;
+                    for (let x = 0; x < canvas.width + pipe.width; x += 10) { // Check at intervals
+                        const pipeX = pipe.x - x;
+                        const topY = pipe.topFunction(pipeX, pipe.params);
+                        const bottomY = pipe.bottomFunction(pipeX, pipe.params);
+
+                        if (isNaN(topY) || isNaN(bottomY) || topY < 20 || bottomY > canvas.height - 20 || bottomY <= topY + bird.height * 1.5) {
+                            isValid = false;
+                            break;
+                        }
+                    }
+
+                    if (isValid) {
+                        return pipe;
+                    }
+                    attempts++;
                 }
+
+                // Fallback to a simple straight pipe if no valid one can be generated
+                const yOffset = Math.random() * (canvas.height - 300) + 150;
+                return {
+                    x: canvas.width,
+                    width: pipeWidth,
+                    topFunction: (x, p) => p.yOffset,
+                    bottomFunction: (x, p) => p.yOffset + pipeGap,
+                    params: { yOffset: yOffset }
+                };
             }
 
             // --- Game Loop ---
