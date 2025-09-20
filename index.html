@@ -58,7 +58,7 @@
             background-color: #2563eb; /* A nice blue */
             color: white;
             font-weight: 600;
-            transition: background-color 0.2s, left 0s, right 0s;
+            transition: background-color 0.2s, left 0s, right 0s, transform 0s;
             position: fixed; /* Changed to fixed to float on top */
             top: 1rem;
             left: 1rem;
@@ -168,13 +168,15 @@
         const specialGames = ['asgore-dess.html', 'math-hell.html', '5d-platformer.html'];
 
         function showGame(gameUrl) {
-            // Check if the current game needs the button on the right
+            // Check if the current game needs the button in the center
             if (specialGames.includes(gameUrl)) {
-                backButton.style.left = 'auto';
-                backButton.style.right = '1rem';
+                backButton.style.left = '50%';
+                backButton.style.transform = 'translateX(-50%)';
+                backButton.style.right = 'auto';
             } else {
                 // Otherwise, ensure it's on the left
                 backButton.style.left = '1rem';
+                backButton.style.transform = 'none';
                 backButton.style.right = 'auto';
             }
 
