@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5D Platformer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #info-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+        }
+        p {
+            margin: 5px 0;
+        }
+        #win-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            padding: 30px;
+            background-color: rgba(0, 20, 0, 0.85);
+            border: 2px solid #0f0;
+            border-radius: 15px;
+            text-align: center;
+            font-size: 2em;
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="info-container">
+        <h1>5D Platformer Controls</h1>
+        <p><strong>Movement:</strong> WASD Keys</p>
+        <p><strong>Jump:</strong> Spacebar</p>
+        <p><strong>Look:</strong> Mouse</p>
+        <p><strong>Time Travel (4D):</strong> Q Key</p>
+        <p><strong>Multiverse Shift (5D):</strong> E Key</p>
+        <hr>
+        <p><strong>Current Time:</strong> <span id="time-status">Present</span></p>
+        <p><strong>Current Universe:</strong> <span id="universe-status">Alpha</span></p>
+    </div>
+
+    <div id="win-message">
+        <h2>Congratulations!</h2>
+        <p>You have conquered 5 dimensions!</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+    <script>
+        // <!-- Core Scene Setup -->
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x111122);
+        document.body.appendChild(renderer.domElement);
+
+        // <!-- Lighting -->
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add(directionalLight);
+
+        // <!-- Player Setup -->
+        const player = {
+            height: 1.8,
+            velocity: new THREE.Vector3(),
+            onGround: false,
+            jumpStrength: 12,
+            speed: 8,
+            jumps: 2
+        };
+        const playerBox = new THREE.Box3(); // Player collision box
+
+        // <!-- Pointer Lock Controls for Mouse Look -->
+        const controls = new THREE.PointerLockControls(camera, document.body);
+        controls.getObject().position.set(0, 5, 0); // Set player start position
+        scene.add(controls.getObject()); // Add player (controls object) to the scene
+
+        document.body.addEventListener('click', () => controls.lock());
+
+        // <!-- Input State -->
+        const keys = {};
+        document.addEventListener('keydown', (e) => keys[e.code] = true);
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        // <!-- Game State -->
+        let timeState = 'Present'; // 'Past' or 'Present'
+        let universeState = 'Alpha'; // 'Alpha' or 'Beta'
+        const timeStatusEl = document.getElementById('time-status');
+        const universeStatusEl = document.getElementById('universe-status');
+
+        // <!-- Level Definition -->
+        // Platforms are defined with their dimensional properties
+        const levelData = [
+            // Start Platform
+            { pos: [0, 0, 0], size: [10, 1, 10], time: ['Past', 'Present'], universe: ['Alpha', 'Beta'] },
+
+            // Path 1: Time-based puzzle
+            { pos: [0, 2, -15], size: [4, 1, 4], time: ['Past'], universe: ['Alpha', 'Beta'] },
+            { pos: [0, 4, -25], size: [4, 1, 4], time: ['Present'], universe: ['Alpha', 'Beta'] },
+
+            // Path 2: Universe-based puzzle
+            { pos: [15, 6, -25], size: [10, 1, 4], time: ['Past', 'Present'], universe: ['Alpha'] },
+            { pos: [25, 8, -25], size: [4, 1, 10], time: ['Past', 'Present'], universe: ['Beta'] },
+            
+            // Path 3: Combined puzzle
+            { pos: [15, 10, -40], size: [4, 1, 4], time: ['Present'], universe: ['Alpha'] },
+            { pos: [25, 12, -40], size: [4, 1, 4], time: ['Past'], universe: ['Beta'] },
+            { pos: [20, 14, -50], size: [15, 1, 4], time: ['Present'], universe: ['Beta'] },
+            
+            // Floating platforms to goal
+            { pos: [5, 16, -60], size: [3, 1, 3], time: ['Past', 'Present'], universe: ['Alpha'] },
+            { pos: [-5, 18, -70], size: [3, 1, 3], time: ['Past', 'Present'], universe: ['Beta'] },
+            { pos: [0, 20, -80], size: [3, 1, 3], time: ['Past', 'Present'], universe: ['Alpha', 'Beta'] },
+
+            // Goal Platform
+            { pos: [0, 22, -90], size: [8, 1, 8], time: ['Past', 'Present'], universe: ['Alpha', 'Beta'] },
+        ];
+
+        const platforms = [];
+        const platformMaterialPast = new THREE.MeshLambertMaterial({ color: 0xccaa88 });
+        const platformMaterialPresent = new THREE.MeshLambertMaterial({ color: 0x8899cc });
+        const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.3 });
+
+        levelData.forEach(data => {
+            const geometry = new THREE.BoxGeometry(...data.size);
+            const mesh = new THREE.Mesh(geometry, platformMaterialPresent.clone());
+            mesh.position.set(...data.pos);
+            mesh.userData = { time: data.time, universe: data.universe, boundingBox: new THREE.Box3().setFromObject(mesh) };
+            platforms.push(mesh);
+            scene.add(mesh);
+        });
+        
+        // <!-- Goal Object -->
+        const goalGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const goalMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, toneMapped: false });
+        const goal = new THREE.Mesh(goalGeometry, goalMaterial);
+        goal.position.set(0, 23.5, -90);
+        goal.userData.boundingBox = new THREE.Box3().setFromObject(goal);
+        scene.add(goal);
+
+
+        // <!-- Update Logic for Dimensions -->
+        function updateDimensionalState() {
+            // Update UI
+            timeStatusEl.textContent = timeState;
+            timeStatusEl.style.color = timeState === 'Present' ? '#8899cc' : '#ccaa88';
+            universeStatusEl.textContent = universeState;
+            universeStatusEl.style.color = universeState === 'Alpha' ? '#ff8888' : '#88ff88';
+
+            // Update scene background
+            scene.background = new THREE.Color(timeState === 'Present' ? 0x111122 : 0x332211);
+            
+            // Update platforms
+            platforms.forEach(p => {
+                const existsInTime = p.userData.time.includes(timeState);
+                const existsInUniverse = p.userData.universe.includes(universeState);
+
+                p.material = timeState === 'Present' ? platformMaterialPresent : platformMaterialPast;
+
+                if (existsInTime && existsInUniverse) {
+                    p.visible = true;
+                    p.material.wireframe = false;
+                } else if (existsInTime && !existsInUniverse) {
+                    p.visible = true;
+                    p.material = wireframeMaterial;
+                } else {
+                    p.visible = false;
+                }
+                
+                // This makes wireframe platforms non-collidable
+                p.userData.collidable = existsInTime && existsInUniverse;
+            });
+        }
+
+
+        // <!-- Game Loop -->
+        const clock = new THREE.Clock();
+        let gameWon = false;
+        
+        const forwardVector = new THREE.Vector3();
+        const rightVector = new THREE.Vector3();
+        const moveVector = new THREE.Vector3();
+
+        function animate() {
+            if (gameWon) return;
+
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            // Handle dimension shifting input
+            if (keys['KeyQ']) {
+                timeState = timeState === 'Present' ? 'Past' : 'Present';
+                updateDimensionalState();
+                keys['KeyQ'] = false; // Prevent rapid switching
+            }
+            if (keys['KeyE']) {
+                universeState = universeState === 'Alpha' ? 'Beta' : 'Alpha';
+                updateDimensionalState();
+                keys['KeyE'] = false; // Prevent rapid switching
+            }
+            
+            // Player Movement
+            // Get camera direction
+            controls.getDirection(forwardVector);
+            forwardVector.y = 0;
+            forwardVector.normalize();
+            
+            // Calculate right vector
+            rightVector.crossVectors(controls.getObject().up, forwardVector).normalize();
+            
+            moveVector.set(0, 0, 0);
+
+            if (keys['KeyW']) moveVector.add(forwardVector);
+            if (keys['KeyS']) moveVector.sub(forwardVector);
+            if (keys['KeyA']) moveVector.add(rightVector);
+            if (keys['KeyD']) moveVector.sub(rightVector);
+
+            if (moveVector.lengthSq() > 0) {
+                moveVector.normalize();
+                player.velocity.x = moveVector.x * player.speed;
+                player.velocity.z = moveVector.z * player.speed;
+            } else {
+                player.velocity.x = 0;
+                player.velocity.z = 0;
+            }
+
+            // Apply horizontal velocity
+            controls.getObject().position.x += player.velocity.x * delta;
+            controls.getObject().position.z += player.velocity.z * delta;
+
+            // Apply gravity and jumping
+            if (keys['Space'] && player.jumps > 0) {
+                player.velocity.y = player.jumpStrength;
+                player.jumps--;
+                player.onGround = false; // Can't be on ground if you just jumped
+                keys['Space'] = false; // Consume the jump input
+            }
+            player.velocity.y -= 20 * delta; // Gravity
+            controls.getObject().position.y += player.velocity.y * delta;
+            
+            // Reset onGround status before checking collisions
+            player.onGround = false;
+
+            // Update player's bounding box
+            const playerPos = controls.getObject().position;
+            const playerHalfHeight = player.height / 2;
+            playerBox.min.set(playerPos.x - 0.4, playerPos.y - playerHalfHeight, playerPos.z - 0.4);
+            playerBox.max.set(playerPos.x + 0.4, playerPos.y + playerHalfHeight, playerPos.z + 0.4);
+
+            // Collision detection
+            platforms.forEach(platform => {
+                if (platform.userData.collidable) {
+                    const platformBox = platform.userData.boundingBox;
+                    if (playerBox.intersectsBox(platformBox)) {
+                        
+                        // Calculate penetration depth on each axis
+                        const overlapX = Math.min(playerBox.max.x, platformBox.max.x) - Math.max(playerBox.min.x, platformBox.min.x);
+                        const overlapY = Math.min(playerBox.max.y, platformBox.max.y) - Math.max(playerBox.min.y, platformBox.min.y);
+                        const overlapZ = Math.min(playerBox.max.z, platformBox.max.z) - Math.max(playerBox.min.z, platformBox.min.z);
+
+                        // Find the axis with the minimum penetration
+                        if (overlapY < overlapX && overlapY < overlapZ) {
+                            // Vertical collision
+                            // If player is moving down, resolve by pushing up
+                            if (player.velocity.y <= 0) {
+                                controls.getObject().position.y += overlapY;
+                                player.velocity.y = 0;
+                                player.onGround = true;
+                                player.jumps = 2; // Reset jumps on landing
+                            } else { // Player is moving up (hitting ceiling)
+                                controls.getObject().position.y -= overlapY;
+                                player.velocity.y = 0;
+                            }
+                        } else if (overlapX < overlapZ) {
+                            // Horizontal X collision
+                            const playerCenter = playerPos.x;
+                            const platformCenter = platform.position.x;
+                            if (playerCenter < platformCenter) {
+                                controls.getObject().position.x -= overlapX;
+                            } else {
+                                controls.getObject().position.x += overlapX;
+                            }
+                        } else {
+                            // Horizontal Z collision
+                            const playerCenter = playerPos.z;
+                            const platformCenter = platform.position.z;
+                            if (playerCenter < platformCenter) {
+                                controls.getObject().position.z -= overlapZ;
+                            } else {
+                                controls.getObject().position.z += overlapZ;
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Check for falling out of world
+            if (controls.getObject().position.y < -50) {
+                controls.getObject().position.set(0, 5, 0);
+                player.velocity.set(0, 0, 0);
+            }
+
+            // Pulsate goal
+            const pulse = Math.sin(clock.getElapsedTime() * 4) * 0.2 + 0.8;
+            goal.scale.set(pulse, pulse, pulse);
+            
+            // Check win condition
+            if(playerBox.intersectsBox(goal.userData.boundingBox)) {
+                document.getElementById('win-message').style.display = 'block';
+                controls.unlock();
+                gameWon = true;
+            }
+
+            renderer.render(scene, camera);
+        }
+        
+        // <!-- Window Resize Handler -->
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+        
+        // Initial state setup and start game
+        updateDimensionalState();
+        animate();
+
+    </script>
+</body>
+</html>

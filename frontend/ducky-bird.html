@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Flappy Bird</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Basic styles to make the game look good */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #333;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        #game-container {
+            width: 100%;
+            max-width: 500px;
+            height: 100%;
+            max-height: 800px;
+            background-color: #70c5ce;
+            position: relative;
+            overflow: hidden;
+            border: 5px solid #000;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            color: white;
+            text-shadow: 3px 3px 0 #000;
+            z-index: 10;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 20;
+            border: 3px solid #fff;
+        }
+        #message-box h2 {
+            margin-top: 0;
+            font-size: 1.8rem;
+        }
+        #message-box p {
+            margin-bottom: 0;
+            font-size: 1rem;
+        }
+        #physics-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            display: none; /* Hide by default */
+            flex-direction: column;
+            gap: 10px;
+            z-index: 30;
+            font-size: 0.75rem;
+            text-shadow: 2px 2px 0 #000;
+            width: 90%;
+            box-sizing: border-box;
+            border: 2px solid #fff;
+        }
+        .control-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .control-group label {
+            white-space: nowrap;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .control-group span {
+            min-width: 40px;
+            text-align: right;
+            background: #222;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">0</div>
+        <div id="message-box">
+            <h2>Flappy Bird</h2>
+            <p>Click or Tap to Start!</p>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="physics-controls">
+            <div class="control-group">
+                <label for="fps-slider">FPS:</label>
+                <input type="range" id="fps-slider" min="15" max="240" step="5" value="60">
+                <span id="fps-value">60</span>
+            </div>
+            <div class="control-group">
+                <label for="gravity-slider">Gravity:</label>
+                <input type="range" id="gravity-slider" min="0.2" max="1.5" step="0.05" value="1.25">
+                <span id="gravity-value">1.25</span>
+            </div>
+            <div class="control-group">
+                <label for="jump-slider">Jump:</label>
+                <input type="range" id="jump-slider" min="6" max="16" step="0.5" value="15">
+                <span id="jump-value">15.0</span>
+            </div>
+            <div class="control-group">
+                <label for="speed-slider">Speed:</label>
+                <input type="range" id="speed-slider" min="1" max="8" step="0.25" value="3">
+                <span id="speed-value">3.0</span>
+            </div>
+             <div class="control-group">
+                <label for="push-force-slider">Push Force:</label>
+                <input type="range" id="push-force-slider" min="0" max="10" step="0.5" value="0">
+                <span id="push-force-value">0.0</span>
+            </div>
+            <div class="control-group">
+                <label for="xfriction-slider">X-Friction:</label>
+                <input type="range" id="xfriction-slider" min="0.0" max="1.0" step="0.005" value="1.0">
+                <span id="xfriction-value">1.000</span>
+            </div>
+            <div class="control-group">
+                <label for="pipe-freq-slider">Pipe Freq:</label>
+                <input type="range" id="pipe-freq-slider" min="1" max="200" step="1" value="100">
+                <span id="pipe-freq-value">100</span>
+            </div>
+            <div class="control-group">
+                <label for="bird-size-slider">Bird Size:</label>
+                <input type="range" id="bird-size-slider" min="0.5" max="2.5" step="0.05" value="1.2">
+                <span id="bird-size-value">1.20</span>
+            </div>
+            <div class="control-group">
+                <label for="hitbox-slider">Hitbox Pad:</label>
+                <input type="range" id="hitbox-slider" min="0" max="18" step="1" value="10">
+                <span id="hitbox-value">10</span>
+            </div>
+            <div class="control-group">
+                <label for="initial-wait-slider">Initial Wait:</label>
+                <input type="range" id="initial-wait-slider" min="0" max="300" step="10" value="100">
+                <span id="initial-wait-value">100</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const messageBox = document.getElementById('message-box');
+        const messageTitle = messageBox.querySelector('h2');
+        const messageText = messageBox.querySelector('p');
+        
+        // --- Slider Elements ---
+        const fpsSlider = document.getElementById('fps-slider');
+        const fpsValue = document.getElementById('fps-value');
+        const gravitySlider = document.getElementById('gravity-slider');
+        const gravityValue = document.getElementById('gravity-value');
+        const jumpSlider = document.getElementById('jump-slider');
+        const jumpValue = document.getElementById('jump-value');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedValue = document.getElementById('speed-value');
+        const pushForceSlider = document.getElementById('push-force-slider');
+        const pushForceValue = document.getElementById('push-force-value');
+        const xFrictionSlider = document.getElementById('xfriction-slider');
+        const xFrictionValue = document.getElementById('xfriction-value');
+        const pipeFreqSlider = document.getElementById('pipe-freq-slider');
+        const pipeFreqValue = document.getElementById('pipe-freq-value');
+        const birdSizeSlider = document.getElementById('bird-size-slider');
+        const birdSizeValue = document.getElementById('bird-size-value');
+        const hitboxSlider = document.getElementById('hitbox-slider');
+        const hitboxValue = document.getElementById('hitbox-value');
+        const initialWaitSlider = document.getElementById('initial-wait-slider');
+        const initialWaitValue = document.getElementById('initial-wait-value');
+
+        // --- Game Variables ---
+        let bird, pipes, score, trajectory, trajectoryHue;
+        let gravity, lift, gameSpeed, pipeGap, pipeFrequency, birdSizeMultiplier, hitboxPadding, initialPipeWait, pushForce, xFriction;
+        let isGameOver = false, gameStarted = false, isPaused = false, isDying = false;
+        let collidingPipe = null;
+        let frames = 0;
+
+        // Variables for fixed timestep
+        let lastTime = 0;
+        let accumulator = 0;
+        let timestep = 1000 / 60; // Game logic update rate
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+
+        // --- Initialization ---
+        function init() {
+            bird = {
+                x: canvas.width / 4,
+                y: canvas.height / 2,
+                radius: 20,
+                velocity_y: 0,
+                velocity_x: 0,
+            };
+            pipes = [];
+            trajectory = [];
+            trajectoryHue = 0;
+            score = 0;
+            frames = 0;
+            
+            // Reset time variables for the new game loop
+            lastTime = 0;
+            accumulator = 0;
+
+            // Read all values from sliders
+            timestep = 1000 / parseInt(fpsSlider.value);
+            gravity = parseFloat(gravitySlider.value);
+            lift = -parseFloat(jumpSlider.value);
+            gameSpeed = parseFloat(speedSlider.value);
+            pushForce = parseFloat(pushForceSlider.value);
+            xFriction = parseFloat(xFrictionSlider.value);
+            pipeGap = 200;
+            pipeFrequency = parseInt(pipeFreqSlider.value);
+            birdSizeMultiplier = parseFloat(birdSizeSlider.value);
+            hitboxPadding = parseInt(hitboxSlider.value);
+            initialPipeWait = parseInt(initialWaitSlider.value);
+            
+            isGameOver = false;
+            isPaused = false;
+            isDying = false;
+            collidingPipe = null;
+            scoreDisplay.textContent = score;
+            messageBox.style.display = 'none';
+            document.getElementById('physics-controls').style.display = 'none';
+            gameStarted = true;
+        }
+
+        // --- Bird Functions ---
+        function drawBird() {
+            const visualRadius = bird.radius * birdSizeMultiplier;
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, visualRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffc700';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        function flap() {
+            if (!isGameOver && !isPaused) {
+                bird.velocity_y = lift;
+                bird.velocity_x += pushForce;
+            }
+        }
+
+        function updateBird() {
+            // Y-axis physics (Gravity)
+            bird.velocity_y += gravity;
+            bird.y += bird.velocity_y;
+
+            // X-axis physics (Friction & Movement)
+            bird.velocity_x *= xFriction;
+            bird.x += bird.velocity_x;
+
+            // Collision with screen edges
+            if (bird.y + (bird.radius - hitboxPadding) > canvas.height || bird.y - (bird.radius - hitboxPadding) < 0 ||
+                bird.x - (bird.radius - hitboxPadding) < 0 || bird.x + (bird.radius - hitboxPadding) > canvas.width) {
+                collidingPipe = null;
+                endGame();
+            }
+        }
+        
+        // --- Trajectory Functions ---
+        function drawTrajectory() {
+            if (trajectory.length < 2) return;
+            ctx.lineWidth = 5;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            for (let i = 1; i < trajectory.length; i++) {
+                ctx.beginPath();
+                ctx.moveTo(trajectory[i-1].x, trajectory[i-1].y);
+                ctx.lineTo(trajectory[i].x, trajectory[i].y);
+                ctx.strokeStyle = `hsl(${trajectory[i].hue}, 100%, 65%)`;
+                ctx.stroke();
+            }
+        }
+
+        function updateTrajectory() {
+            if (frames % 2 === 0) {
+                trajectory.push({ x: bird.x, y: bird.y, hue: trajectoryHue });
+                trajectoryHue = (trajectoryHue + 5) % 360;
+            }
+            trajectory.forEach(point => point.x -= gameSpeed);
+            if (trajectory.length > 100) trajectory.shift();
+            trajectory = trajectory.filter(point => point.x > -10);
+        }
+        
+        // --- Pipe Functions ---
+        function drawPipes() {
+            ctx.fillStyle = '#73bf2e';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 4;
+            pipes.forEach(pipe => {
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
+                ctx.strokeRect(pipe.x, 0, pipe.width, pipe.top);
+                ctx.fillRect(pipe.x, pipe.top + pipe.gap, pipe.width, canvas.height - pipe.top - pipe.gap);
+                ctx.strokeRect(pipe.x, pipe.top + pipe.gap, pipe.width, canvas.height - pipe.top - pipe.gap);
+            });
+        }
+
+        function updatePipes() {
+            if (frames >= initialPipeWait && (frames - initialPipeWait) % pipeFrequency === 0) {
+                const minHeight = 50;
+                const maxHeight = canvas.height - pipeGap - minHeight;
+                const topPipeHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1) + minHeight);
+                pipes.push({ x: canvas.width, width: 60, top: topPipeHeight, gap: pipeGap, passed: false });
+            }
+            pipes.forEach(pipe => pipe.x -= gameSpeed);
+            pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+        }
+
+        // --- Game Logic ---
+        function checkCollisions() {
+            for (let pipe of pipes) {
+                if (bird.x + (bird.radius - hitboxPadding) > pipe.x && bird.x - (bird.radius - hitboxPadding) < pipe.x + pipe.width) {
+                    if (bird.y - (bird.radius - hitboxPadding) < pipe.top || bird.y + (bird.radius - hitboxPadding) > pipe.top + pipe.gap) {
+                        collidingPipe = pipe;
+                        endGame();
+                        return;
+                    }
+                }
+                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                    pipe.passed = true;
+                }
+            }
+        }
+        
+        function endGame() {
+            if (isDying || isGameOver) return;
+            isDying = true;
+            setTimeout(() => {
+                isGameOver = true;
+                isDying = false;
+                document.getElementById('physics-controls').style.display = 'flex';
+                messageTitle.textContent = "Game Over!";
+                messageText.innerHTML = `Score: ${score}<br>Click to Play Again`;
+                messageBox.style.display = 'flex';
+            }, 500);
+        }
+
+        function resetGame() {
+            resizeCanvas();
+            init();
+            requestAnimationFrame(gameLoop); // Use requestAnimationFrame to start the loop
+        }
+
+        function gameLoop(currentTime = 0) {
+            if (isGameOver) return; // Stop the loop entirely on game over
+
+            if (!isPaused) {
+                if (lastTime === 0) {
+                    lastTime = currentTime;
+                }
+                let deltaTime = currentTime - lastTime;
+                lastTime = currentTime;
+                accumulator += deltaTime;
+
+                // Fixed update loop. This runs physics at a constant rate.
+                while (accumulator >= timestep) {
+                    if (!isDying) {
+                        updateBird();
+                        updatePipes();
+                        updateTrajectory();
+                        checkCollisions();
+                    }
+                    accumulator -= timestep;
+                    frames++; // Count physics steps, not render frames
+                }
+            }
+
+            // Render logic. This runs as fast as possible.
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPipes();
+            drawTrajectory();
+            drawBird();
+
+            if (isDying) {
+                drawHitboxes();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawHitboxes() {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.beginPath();
+            ctx.arc(bird.x, bird.y, bird.radius - hitboxPadding, 0, Math.PI * 2);
+            ctx.fill();
+            if (collidingPipe) {
+                ctx.fillStyle = 'rgba(0, 0, 255, 0.5)';
+                ctx.fillRect(collidingPipe.x, 0, collidingPipe.width, collidingPipe.top);
+                ctx.fillRect(collidingPipe.x, collidingPipe.top + collidingPipe.gap, collidingPipe.width, canvas.height - collidingPipe.top - collidingPipe.gap);
+            }
+        }
+
+        // --- Event Handlers ---
+        function handleInput(event) {
+            event.preventDefault();
+            if (isPaused) return;
+            if (isGameOver) {
+                resetGame();
+            } else {
+                if (!gameStarted) {
+                     init();
+                     requestAnimationFrame(gameLoop);
+                }
+                flap();
+            }
+        }
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') handleInput(e);
+            if (e.code === 'Escape') togglePause();
+        });
+        
+        canvas.addEventListener('mousedown', handleInput);
+        canvas.addEventListener('touchstart', handleInput);
+
+        function togglePause() {
+            if (!gameStarted || isGameOver || isDying) return;
+            isPaused = !isPaused;
+            const physicsControls = document.getElementById('physics-controls');
+            if (isPaused) {
+                physicsControls.style.display = 'flex';
+                messageTitle.textContent = "Paused";
+                messageText.innerHTML = `Press ESC to Resume`;
+                messageBox.style.display = 'flex';
+            } else {
+                // When unpausing, reset lastTime to prevent a huge deltaTime jump
+                lastTime = performance.now(); 
+                physicsControls.style.display = 'none';
+                messageBox.style.display = 'none';
+                // The loop is already running, just needs to un-pause
+            }
+        }
+
+        // Add event listeners for all sliders
+        fpsSlider.addEventListener('input', (e) => { 
+            const fps = parseInt(e.target.value);
+            fpsValue.textContent = fps;
+            timestep = 1000 / fps;
+        });
+        gravitySlider.addEventListener('input', (e) => { gravity = parseFloat(e.target.value); gravityValue.textContent = gravity.toFixed(2); });
+        jumpSlider.addEventListener('input', (e) => { lift = -parseFloat(e.target.value); jumpValue.textContent = (-lift).toFixed(1); });
+        speedSlider.addEventListener('input', (e) => { gameSpeed = parseFloat(e.target.value); speedValue.textContent = gameSpeed.toFixed(1); });
+        pushForceSlider.addEventListener('input', (e) => { pushForce = parseFloat(e.target.value); pushForceValue.textContent = pushForce.toFixed(1); });
+        xFrictionSlider.addEventListener('input', (e) => { xFriction = parseFloat(e.target.value); xFrictionValue.textContent = xFriction.toFixed(3); });
+        pipeFreqSlider.addEventListener('input', (e) => { pipeFrequency = parseInt(e.target.value); pipeFreqValue.textContent = pipeFrequency; });
+        birdSizeSlider.addEventListener('input', (e) => { birdSizeMultiplier = parseFloat(e.target.value); birdSizeValue.textContent = birdSizeMultiplier.toFixed(2); });
+        hitboxSlider.addEventListener('input', (e) => { hitboxPadding = parseInt(e.target.value); hitboxValue.textContent = hitboxPadding; });
+        initialWaitSlider.addEventListener('input', (e) => { initialPipeWait = parseInt(e.target.value); initialWaitValue.textContent = initialPipeWait; });
+
+        // --- Initial Setup ---
+        function setup() {
+            resizeCanvas();
+            const sliders = document.querySelectorAll('input[type="range"]');
+            sliders.forEach(slider => slider.dispatchEvent(new Event('input')));
+            messageBox.style.display = 'flex'; // Show initial message
+        }
+
+        window.addEventListener('resize', resizeCanvas, false);
+        setup();
+    </script>
+</body>
+</html>
+
