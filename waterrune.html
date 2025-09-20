@@ -210,25 +210,65 @@
         const enemies = {
             water_droplet: {
                 name: 'Water Droplet', hp: 80, maxHp: 80, attackPower: 8, color: '#00BFFF', size: canvas.width * 0.06, isCircle: true,
-                pacifyValue: 0, acts: ['Check', 'Whisper'], actResponses: { 'Whisper': 'The Water Droplet seems to listen.' },
-                attackPattern: 'drip'
+                state: 'wary', pacifyState: 'calm',
+                acts: ['Check', 'Whisper', 'Hum', 'Poke'],
+                actLogic: (act, state) => {
+                    switch(state) {
+                        case 'wary':
+                            if (act === 'Whisper') return { newState: 'curious', response: 'It leans in, seeming to listen.' };
+                            if (act === 'Poke') return { newState: 'agitated', response: 'It recoils angrily! Its attack rose!' };
+                            break;
+                        case 'curious':
+                            if (act === 'Hum') return { newState: 'content', response: 'The droplet jiggles happily to your tune.' };
+                            break;
+                        case 'content':
+                            if (act === 'Hum') return { newState: 'calm', response: 'It resonates with your melody, completely calm.' };
+                            break;
+                        case 'agitated':
+                            if (act === 'Whisper') return { newState: 'wary', response: 'Your soft words seem to soothe its anger.' };
+                            break;
+                    }
+                    return { newState: state, response: 'Nothing seems to happen.' };
+                },
+                attackPatterns: ['drip', 'splash_up', 'slanted_rain']
             },
-            water_cooler: {
-                name: 'Water Cooler', hp: 160, maxHp: 160, attackPower: 12, color: '#ADD8E6', size: canvas.width * 0.1, isCircle: false,
-                pacifyValue: 0, acts: ['Check', 'Pat'], actResponses: { 'Pat': 'The Water Cooler gurgles happily.' },
-                attackPattern: 'stream'
+            water_bottle: {
+                name: 'Water Bottle', hp: 90, maxHp: 90, attackPower: 10, color: '#87CEEB', size: canvas.width * 0.04, isCircle: false,
+                 state: 'sealed', pacifyState: 'refreshed',
+                acts: ['Check', 'Read Label', 'Shake', 'Open Cap'],
+                actLogic: (act, state) => {
+                    switch(state) {
+                        case 'sealed':
+                            if (act === 'Read Label') return { newState: 'understood', response: '"Pure, natural spring water." You understand it better.' };
+                            if (act === 'Shake') return { newState: 'fizzing', response: 'It fizzes aggressively! Its attack rose!' };
+                            break;
+                        case 'understood':
+                             if (act === 'Open Cap') return { newState: 'opened', response: 'A gentle sigh of air escapes. It seems relieved.' };
+                             break;
+                        case 'opened':
+                            if (act === 'Read Label') return { newState: 'refreshed', response: 'You appreciate its quality. It seems fulfilled and calm.' };
+                            break;
+                        case 'fizzing':
+                            if (act === 'Open Cap') return { newState: 'sealed', response: 'You release the pressure. It settles down.' };
+                            break;
+                    }
+                    return { newState: state, response: 'It doesn\'t react.' };
+                },
+                attackPatterns: ['squirt', 'cap_throw', 'spill']
             },
-            silhouette_boss: {
+             silhouette_boss: { // Kept the old system for the boss as it's a secret one-off
                 name: '???', hp: 300, maxHp: 300, attackPower: 15, color: '#111', size: canvas.width * 0.06, isCircle: false,
-                pacifyValue: 0, acts: ['Check', 'Stare', 'Ponder'],
-                actResponses: { 'Stare': 'The silhouette stares back into your soul.', 'Ponder': 'You ponder its existence. It seems to resonate.' },
-                attackPattern: 'shadow_blades'
+                pacifyValue: 0, usedActs: new Set(),
+                acts: ['Check', 'Stare', 'Ponder', 'Reach Out'], 
+                actResponses: { 'Stare': 'The silhouette stares back into your soul.', 'Ponder': 'You ponder its existence. It seems to resonate.', 'Reach Out': 'It recoils slightly, but a flicker of light appears within it.' },
+                attackPatterns: ['shadow_blades', 'dark_tendrils', 'void_pulse']
             }
         };
         
         // --- SCENES & DIALOGUE ---
         const scenes = {
             library: { package: { x: canvas.width / 2, y: canvas.height / 2, size: canvas.width * 0.08, color: '#FF00FF', interacted: false }, door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }, dialogue: ["I was sitting in the library at school like normal...", "Then I saw a giant package in the middle of the room. It seems to be vibrating.", "I should go look at it."] },
+            outside: { roamingEnemies: [], environmentalHazards: [], trapdoor: { x: canvas.width / 2, y: canvas.height / 2, size: canvas.width * 0.08, color: '#3B2F2F', active: true } },
             battle: {},
             hallway: { door: { x: canvas.width / 2, y: canvas.height - 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }, dialogue: ["When I opened my eyes, the room was destroyed. Water everywhere...", "I have to get out of here. Dodge the water!"], waters: [] },
             storage: { dialogue: ["I came to a supply storage. I'll use my water bottle to open it...", "*click*", "WHOA... I'm falling!"] },
@@ -243,11 +283,8 @@
         // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
-            if (gameState.inBattle) {
-                handleBattleInput(e.key);
-            } else if (gameState.currentScene === 'prophecy' && gameState.inDialogue) {
-                handleSecretInput(e.key);
-            }
+            if (gameState.inBattle) { handleBattleInput(e.key); } 
+            else if (gameState.currentScene === 'prophecy' && gameState.inDialogue) { handleSecretInput(e.key); }
         });
         window.addEventListener('keyup', (e) => {
              keys[e.key] = false;
@@ -260,31 +297,28 @@
         function endDialogue() { 
             gameState.inDialogue = false; 
             dialogueBox.style.display = 'none'; 
-            if (gameState.currentScene === 'prophecy') {
-                secretInput = '';
-                secretDisplay.style.display = 'none';
-            }
+            if (gameState.currentScene === 'prophecy') { secretInput = ''; secretDisplay.style.display = 'none'; }
             handlePostDialogueEvent(); 
         }
         function handleInteraction() {
             if (gameState.gameOver) return;
             if (gameState.inDialogue) {
-                let dialogueArray = scenes[gameState.currentScene].dialogue;
-                if (gameState.currentScene === 'end' && gameState.secretBossDefeated) {
-                    dialogueArray = scenes.end.secretDialogue;
-                }
-                displayNextMessage(dialogueArray);
+                let d = scenes[gameState.currentScene].dialogue;
+                if (gameState.currentScene === 'end' && gameState.secretBossDefeated) { d = scenes.end.secretDialogue; }
+                displayNextMessage(d);
                 return; 
             }
             if (gameState.interactionTarget) {
                 switch (gameState.interactionTarget) {
-                    case 'package': scenes.library.package.interacted = true; startBattle(enemies.water_droplet); break;
+                    case 'package': transitionToOutside(); break;
+                    case 'outside_trapdoor': 
+                        gameState.currentScene = 'storage'; 
+                        startDialogue(scenes.storage.dialogue);
+                        break;
                     case 'hallway_door': gameState.currentScene = 'storage'; startDialogue(scenes.storage.dialogue); break;
                     case 'silhouette': 
                         gameState.currentScene = 'prophecy'; 
-                        secretInput = ''; // Reset secret input
-                        secretDisplay.textContent = '';
-                        secretDisplay.style.display = 'block';
+                        secretInput = ''; secretDisplay.textContent = ''; secretDisplay.style.display = 'block';
                         startDialogue(scenes.prophecy.dialogue); 
                         break;
                 }
@@ -323,29 +357,93 @@
         function handleSecretInput(key) {
             if (key.length === 1 && key.match(/[a-z]/i)) {
                 secretInput += key.toUpperCase();
-                if (secretInput.length > secretCode.length) {
-                    secretInput = secretInput.substring(secretInput.length - secretCode.length);
-                }
+                if (secretInput.length > secretCode.length) { secretInput = secretInput.substring(secretInput.length - secretCode.length); }
                 secretDisplay.textContent = secretInput;
-                if (secretInput.endsWith(secretCode)) {
-                    secretInput = ''; 
-                    secretDisplay.style.display = 'none';
-                    startSecretBattle();
-                }
+                if (secretInput.endsWith(secretCode)) { secretInput = ''; secretDisplay.style.display = 'none'; startSecretBattle(); }
             }
         }
         function startSecretBattle() {
-            gameState.inDialogue = false;
-            dialogueBox.style.display = 'none';
+            gameState.inDialogue = false; dialogueBox.style.display = 'none';
             if (waterCrushInterval) clearInterval(waterCrushInterval);
-            startBattle(enemies.silhouette_boss);
+            const bossData = { ...enemies.silhouette_boss, usedActs: new Set(), pacifyValue: 0 };
+            startBattle(bossData);
         }
 
+        // --- SCENE TRANSITIONS & OVERWORLD ---
+        function transitionToOutside() {
+            scenes.library.package.interacted = true;
+            let flashes = 0;
+            const explosionInterval = setInterval(() => {
+                document.body.style.backgroundColor = flashes % 2 === 0 ? '#fff' : '#00BFFF';
+                flashes++;
+                if (flashes > 5) {
+                    clearInterval(explosionInterval);
+                    document.body.style.backgroundColor = '#000';
+                    gameState.currentScene = 'outside';
+                    player.x = canvas.width/2; player.y = canvas.height - 60;
+                    initializeOutsideScene();
+                }
+            }, 100);
+        }
+
+        function initializeOutsideScene() {
+            scenes.outside.roamingEnemies = [];
+            for (let i = 0; i < 2; i++) {
+                spawnOverworldEnemy('water_droplet');
+                spawnOverworldEnemy('water_bottle');
+            }
+            setInterval(() => {
+                 if (gameState.currentScene === 'outside') {
+                    const hazard = { x: -20, y: Math.random() * canvas.height, width: 30, height: 5, speed: 4 + Math.random() * 2 };
+                    scenes.outside.environmentalHazards.push(hazard);
+                 }
+            }, 2000);
+        }
+
+        function spawnOverworldEnemy(type) {
+             let x, y, dist;
+            do {
+                x = Math.random() * canvas.width;
+                y = Math.random() * (canvas.height - 100);
+                const dx = player.x - x;
+                const dy = player.y - y;
+                dist = Math.sqrt(dx*dx + dy*dy);
+            } while (dist < 200); // Don't spawn too close
+            scenes.outside.roamingEnemies.push({ type: type, x: x, y: y, speed: 0.8 + Math.random() * 0.5 });
+        }
+        
+        function respawnOverworldEnemies() {
+            scenes.outside.roamingEnemies.forEach(enemy => {
+                let x, y, dist;
+                do {
+                    x = Math.random() * canvas.width;
+                    y = Math.random() * (canvas.height - 100);
+                    const dx = player.x - x;
+                    const dy = player.y - y;
+                    dist = Math.sqrt(dx*dx + dy*dy);
+                } while (dist < 200);
+                enemy.x = x;
+                enemy.y = y;
+            });
+        }
+        
         // --- BATTLE SYSTEM ---
-        function startBattle(enemyData) {
+        function startBattle(enemyData, overworldEnemy) {
+            let enemyInstance;
+            if (enemyData.name === '???') { // Handle secret boss separately
+                enemyInstance = { ...enemyData };
+            } else {
+                enemyInstance = { ...enemyData, state: enemyData.state };
+            }
+
+            if (overworldEnemy) {
+                const index = scenes.outside.roamingEnemies.indexOf(overworldEnemy);
+                if (index > -1) scenes.outside.roamingEnemies.splice(index, 1);
+            }
+
             gameState.inBattle = true;
             gameState.currentScene = 'battle';
-            gameState.enemy = { ...enemyData, hp: enemyData.maxHp };
+            gameState.enemy = enemyInstance;
             gameState.enemyPacified = false;
             battleContainer.style.display = 'block';
             updateBattleUI();
@@ -361,12 +459,9 @@
                 if (key === 'ArrowUp') currentIndex = (currentIndex - 1 + menuItems.length) % menuItems.length;
                 if (key === 'ArrowDown') currentIndex = (currentIndex + 1) % menuItems.length;
                 
-                if (gameState.battleState === 'PLAYER_CHOICE') gameState.battleMenuIndex = currentIndex;
-                else gameState.actMenuIndex = currentIndex;
-
+                if (gameState.battleState === 'PLAYER_CHOICE') gameState.battleMenuIndex = currentIndex; else gameState.actMenuIndex = currentIndex;
                 if (key.toLowerCase() === 'z' || key === 'Enter' || key === ' ') menuItems[currentIndex].click();
-                if (key.toLowerCase() === 'x' && gameState.battleState === 'PLAYER_ACT') playerChoicePhase(`* ${gameState.enemy.name} stands there.`);
-                
+                if (key.toLowerCase() === 'x' && gameState.battleState === 'PLAYER_ACT') playerChoicePhase(`* ${gameState.enemy.name} is ${gameState.enemy.state}.`);
                 updateMenuSelection();
             } else if (gameState.battleState === 'PLAYER_ATTACK') {
                  if (key.toLowerCase() === 'z' || key === 'Enter' || key === ' ') gameState.battleState = 'ATTACK_RESOLVE';
@@ -386,9 +481,7 @@
             const menuId = gameState.battleState === 'PLAYER_CHOICE' ? 'battle-menu' : 'act-menu';
             const menuItems = document.querySelectorAll(`#${menuId} button`);
             let currentIndex = gameState.battleState === 'PLAYER_CHOICE' ? gameState.battleMenuIndex : gameState.actMenuIndex;
-            
             menuItems.forEach((btn, index) => btn.classList.toggle('selected', index === currentIndex));
-
             if (menuId === 'battle-menu') {
                 const spareBtn = document.querySelector('button[data-action="SPARE"]');
                 spareBtn.style.color = gameState.enemyPacified ? '#ffc700' : '#fff';
@@ -398,18 +491,10 @@
         battleMenu.addEventListener('click', (e) => {
             if (e.target.tagName !== 'BUTTON' || gameState.battleState !== 'PLAYER_CHOICE') return;
             const action = e.target.dataset.action;
-
             switch(action) {
-                case 'FIGHT':
-                    gameState.battleState = 'PLAYER_ATTACK';
-                    attackMinigame.style.display = 'block';
-                    attackCursor.style.left = '0%';
-                    attackProgress = 0;
-                    break;
+                case 'FIGHT': gameState.battleState = 'PLAYER_ATTACK'; attackMinigame.style.display = 'block'; attackCursor.style.left = '0%'; attackProgress = 0; break;
                 case 'ACT':
-                    gameState.battleState = 'PLAYER_ACT';
-                    gameState.actMenuIndex = 0;
-                    battleMenu.style.display = 'none';
+                    gameState.battleState = 'PLAYER_ACT'; gameState.actMenuIndex = 0; battleMenu.style.display = 'none';
                     const actMenu = document.createElement('div');
                     actMenu.id = 'act-menu';
                     actMenu.className = 'absolute top-1/2 -translate-y-1/2 left-8 flex flex-col space-y-2';
@@ -429,9 +514,7 @@
                         player.hp = Math.min(player.maxHp, player.hp + healAmount);
                         updateBattleUI();
                         enemyTurnPhase(`* You used a water bottle and healed ${healAmount} HP.`);
-                    } else {
-                        playerChoicePhase('* You have no items left!');
-                    }
+                    } else { playerChoicePhase('* You have no items left!'); }
                     break;
                 case 'SPARE':
                     if (gameState.enemyPacified) winBattle();
@@ -442,123 +525,113 @@
         
         function handleAct(act) {
             let logText = `* You selected ${act}. `;
-            if (gameState.enemy.actResponses[act]) {
-                logText += gameState.enemy.actResponses[act];
-                gameState.enemy.pacifyValue += 50;
-                if (gameState.enemy.pacifyValue >= 100) {
-                    gameState.enemyPacified = true;
-                    logText += `\n* ${gameState.enemy.name} seems ready to give up.`;
+            let attackBoost = 1;
+            
+            // Handle new state-based system
+            if (gameState.enemy.actLogic) {
+                const result = gameState.enemy.actLogic(act, gameState.enemy.state);
+                gameState.enemy.state = result.newState;
+                logText += result.response;
+                if (gameState.enemy.state.includes('agitated') || gameState.enemy.state.includes('fizzing')) {
+                    attackBoost = 1.5;
                 }
-            } else {
-                 logText = `* ${gameState.enemy.name} - ATK ${gameState.enemy.attackPower} HP ${gameState.enemy.hp}/${gameState.enemy.maxHp}`;
+                if (gameState.enemy.state === gameState.enemy.pacifyState) {
+                    gameState.enemyPacified = true;
+                    logText += `\n* ${gameState.enemy.name} is completely pacified.`;
+                }
+            } else { // Fallback for old system (secret boss)
+                if (gameState.enemy.actResponses[act]) {
+                    if (!gameState.enemy.usedActs.has(act)) {
+                        gameState.enemy.usedActs.add(act);
+                        gameState.enemy.pacifyValue += 34;
+                    }
+                    logText += gameState.enemy.actResponses[act];
+                    if (gameState.enemy.pacifyValue >= 100) {
+                        gameState.enemyPacified = true;
+                        logText += `\n* ${gameState.enemy.name} seems ready to give up.`;
+                    }
+                } else { logText = `* ${gameState.enemy.name} - ATK ${gameState.enemy.attackPower} HP ${gameState.enemy.hp}/${gameState.enemy.maxHp}`; }
             }
-            enemyTurnPhase(logText);
+            
+            enemyTurnPhase(logText, attackBoost);
         }
 
-        function enemyTurnPhase(logText) {
-            battleLog.innerHTML = logText;
+        function enemyTurnPhase(logText, attackMultiplier = 1) {
+            battleLog.innerHTML = logText.replace(/\n/g, '<br>');
             battleMenu.style.display = 'none';
             const actMenu = document.getElementById('act-menu');
             if(actMenu) actMenu.remove();
             
             setTimeout(() => {
-                gameState.battleState = 'ENEMY_ATTACK';
-                projectiles = [];
+                gameState.battleState = 'ENEMY_ATTACK'; projectiles = [];
                 const boxSize = 150;
                 defenseBox.style.display = 'block';
                 defenseBox.style.width = `${boxSize}px`; defenseBox.style.height = `${boxSize}px`;
                 defenseBox.style.left = `calc(50% - ${boxSize/2}px)`; defenseBox.style.top = `calc(50% - ${boxSize/2}px)`;
                 player.soul.x = boxSize / 2 - 10; player.soul.y = boxSize / 2 - 10;
-                
-                generateEnemyAttack();
-
+                generateEnemyAttack(attackMultiplier);
                 setTimeout(() => {
                     defenseBox.style.display = 'none';
                     projectiles.forEach(p => p.element.remove());
                     projectiles = [];
                     if (player.hp <= 0) loseBattle();
-                    else playerChoicePhase(`* ${gameState.enemy.name} is waiting.`);
-                }, 4000); // Attack duration
-            }, 1500);
+                    else playerChoicePhase(`* ${gameState.enemy.name} is ${gameState.enemy.state || 'waiting'}.`);
+                }, 7000); // Increased attack duration
+            }, 3000); // Increased pre-attack wait time
         }
 
-        function generateEnemyAttack() {
-            const pattern = gameState.enemy.attackPattern;
+        function generateEnemyAttack(attackMultiplier) {
+            const patterns = gameState.enemy.attackPatterns;
+            const pattern = patterns[Math.floor(Math.random() * patterns.length)];
             const boxSize = 150;
-            if (pattern === 'drip') {
-                for (let i = 0; i < 5; i++) {
-                    setTimeout(() => {
-                        if(gameState.battleState !== 'ENEMY_ATTACK') return;
-                        createProjectile({ x: Math.random() * (boxSize - 10), y: -10, vx: 0, vy: 2 + Math.random(), type: 'circle' });
-                    }, i * 300);
-                }
-            } else if (pattern === 'stream') {
-                for (let i = 0; i < 3; i++) {
-                     setTimeout(() => {
-                        if(gameState.battleState !== 'ENEMY_ATTACK') return;
-                        createProjectile({ x: -10, y: (boxSize / 4) * (i + 1), vx: 2.5, vy: 0, type: 'rect' });
-                    }, i * 500);
-                }
-            } else if (pattern === 'shadow_blades') {
-                for (let i = 0; i < 4; i++) {
-                    setTimeout(() => {
-                        if (gameState.battleState !== 'ENEMY_ATTACK') return;
-                        createProjectile({ x: -20, y: (Math.random() * (boxSize - 10)), vx: 4 + Math.random(), vy: 0, type: 'rect', color: '#333' });
-                        createProjectile({ x: (Math.random() * (boxSize - 10)), y: -20, vx: 0, vy: 4 + Math.random(), type: 'rect', color: '#333' });
-                    }, i * 600);
-                }
-            }
+            const power = gameState.enemy.attackPower * attackMultiplier;
+
+            // Water Droplet Attacks
+            if (pattern === 'drip') for (let i = 0; i < 5; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: -10, vx: 0, vy: 2 + Math.random(), type: 'circle', power }); }, i * 300);
+            if (pattern === 'splash_up') for (let i = 0; i < 8; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: boxSize + 10, vx: 0, vy: -2.5, type: 'circle', power }); }, i * 150);
+            if (pattern === 'slanted_rain') for (let i = 0; i < 10; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -10, y: Math.random() * boxSize, vx: 2, vy: 2, type: 'rect', power }); }, i * 150);
+            
+            // Water Bottle Attacks
+            if (pattern === 'squirt') for (let i = 0; i < 5; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: boxSize/2, y: 0, vx: (Math.random()-0.5)*3, vy: 4, type: 'rect', power }); }, i * 200);
+            if (pattern === 'cap_throw') { const p = createProjectile({ x: 0, y: boxSize - 20, vx: 3, vy: -4, type: 'circle', power }); p.bounces = 4; }
+            if (pattern === 'spill') { const p = createProjectile({ x: boxSize/2, y: boxSize - 10, vx: 0, vy: 0, type: 'puddle', power, width: 10, height: 10 }); p.growth = 1.05; }
+
+            // Boss Attacks (Unchanged)
+            if (pattern === 'shadow_blades') for (let i = 0; i < 4; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -20, y: (Math.random() * (boxSize - 10)), vx: 4 + Math.random(), vy: 0, type: 'rect', color: '#333', power }); createProjectile({ x: (Math.random() * (boxSize - 10)), y: -20, vx: 0, vy: 4 + Math.random(), type: 'rect', color: '#333', power }); }, i * 600);
+            if (pattern === 'dark_tendrils') for (let i = 0; i < 3; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * boxSize, y: -10, vx: 0, vy: 1, type: 'rect', color: '#333', follow: true, power }); }, i * 1000);
+            if (pattern === 'void_pulse') for (let i = 0; i < 3; i++) setTimeout(() => { for(let j=0; j<16; j++) { const angle = (j/16) * 2 * Math.PI; createProjectile({ x: boxSize/2, y: boxSize/2, vx: Math.cos(angle) * 2, vy: Math.sin(angle) * 2, type: 'circle', color: '#333', power }); } }, 2000 + (i * 1200));
         }
 
         function createProjectile(config) {
             const p = document.createElement('div');
             p.style.position = 'absolute';
             p.style.backgroundColor = config.color || 'cyan';
-            if (config.type === 'circle') {
-                 p.style.width = '10px'; p.style.height = '10px'; p.style.borderRadius = '50%';
-            } else {
-                 p.style.width = '20px'; p.style.height = '5px';
-            }
-            const projectileData = { element: p, ...config };
+            
+            let width, height;
+            if (config.type === 'circle') { width = 10; height = 10; p.style.borderRadius = '50%'; } 
+            else if (config.type === 'puddle') { width = config.width; height = config.height; p.style.borderRadius = '30%'; p.style.opacity = '0.7'; }
+            else { width = 20; height = 5; }
+            p.style.width = `${width}px`; p.style.height = `${height}px`;
+
+            const projectileData = { element: p, ...config, width, height, createdAt: Date.now() };
             projectiles.push(projectileData);
             defenseBox.appendChild(p);
+            return projectileData;
         }
 
         function winBattle() {
-            gameState.battleState = 'BATTLE_OVER';
-            battleLog.textContent = `* You won!`;
+            gameState.battleState = 'BATTLE_OVER'; battleLog.textContent = `* You won!`;
             setTimeout(() => {
-                if (gameState.enemy.name === '???') {
-                    gameState.secretBossDefeated = true;
-                    endBattle();
-                } else if (gameState.enemy.name === 'Water Droplet') {
-                     startBattle(enemies.water_cooler);
-                } else {
-                    endBattle();
-                }
+                if (gameState.enemy.name === '???') { gameState.secretBossDefeated = true; endBattle(); }
+                else { endBattle(); }
             }, 1500);
         }
         function loseBattle() { gameState.gameOver = true; battleLog.textContent = "* You were defeated..."; }
         function endBattle() {
-             gameState.inBattle = false;
-             battleContainer.style.display = 'none';
-             if (gameState.secretBossDefeated) {
-                gameState.currentScene = 'end';
-                startDialogue(scenes.end.secretDialogue);
-                return;
-             }
-             let flashes = 0;
-             const explosionInterval = setInterval(() => {
-                 document.body.style.backgroundColor = flashes % 2 === 0 ? '#fff' : '#00BFFF';
-                 flashes++;
-                 if (flashes > 5) {
-                     clearInterval(explosionInterval);
-                     document.body.style.backgroundColor = '#000';
-                     gameState.currentScene = 'hallway';
-                     player.x = canvas.width/2; player.y = 50;
-                     startDialogue(scenes.hallway.dialogue);
-                 }
-             }, 100);
+             gameState.inBattle = false; battleContainer.style.display = 'none';
+             if (gameState.secretBossDefeated) { gameState.currentScene = 'end'; startDialogue(scenes.end.secretDialogue); return; }
+             gameState.currentScene = 'outside';
+             respawnOverworldEnemies(); // Respawn remaining enemies
         }
 
         function updateBattleUI() {
@@ -571,30 +644,37 @@
         let attackProgress = 0;
         function gameLoop() {
             if (!gameState.inBattle && !gameState.inDialogue && !gameState.gameOver) {
+                // Overworld movement
                 if (keys['ArrowUp'] || keys['w']) player.y = Math.max(0, player.y - player.speed);
                 if (keys['ArrowDown'] || keys['s']) player.y = Math.min(canvas.height - player.size / 2, player.y + player.speed);
                 if (keys['ArrowLeft'] || keys['a']) player.x = Math.max(0, player.x - player.speed);
                 if (keys['ArrowRight'] || keys['d']) player.x = Math.min(canvas.width - player.size / 2, player.x + player.speed);
+                
+                if (gameState.currentScene === 'outside') {
+                    // Update and check collisions for roaming enemies
+                    scenes.outside.roamingEnemies.forEach(enemy => {
+                        const enemyData = enemies[enemy.type];
+                        const dx = player.x - enemy.x; const dy = player.y - enemy.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist > 0) { enemy.x += (dx/dist) * enemy.speed; enemy.y += (dy/dist) * enemy.speed; }
+                        if (dist < (player.size + enemyData.size) / 2) { startBattle(enemies[enemy.type], enemy); }
+                    });
+                    scenes.outside.environmentalHazards.forEach((hazard, index) => { hazard.x += hazard.speed; if (hazard.x > canvas.width) scenes.outside.environmentalHazards.splice(index, 1); });
+                    // if (scenes.outside.roamingEnemies.length === 0) scenes.outside.trapdoor.active = true; // REMOVED
+                }
                 checkCollisions();
             } else if (gameState.inBattle) {
                 if (gameState.battleState === 'PLAYER_ATTACK') {
-                    attackProgress += 2.5;
-                    attackCursor.style.left = `${attackProgress}%`;
+                    attackProgress += 2.5; attackCursor.style.left = `${attackProgress}%`;
                     if (attackProgress >= 100) attackProgress = 0;
                 } else if (gameState.battleState === 'ATTACK_RESOLVE') {
                     attackMinigame.style.display = 'none';
                     const sweetSpot = document.getElementById('attack-sweet-spot');
-                    const sweetSpotLeft = parseFloat(sweetSpot.style.left);
-                    const sweetSpotWidth = parseFloat(sweetSpot.style.width);
+                    const sweetSpotLeft = parseFloat(sweetSpot.style.left); const sweetSpotWidth = parseFloat(sweetSpot.style.width);
                     let damage = Math.floor(Math.random() * player.attackPower) + 5;
                     if (attackProgress > sweetSpotLeft && attackProgress < sweetSpotLeft + sweetSpotWidth) damage *= 2;
-                    gameState.enemy.hp -= damage;
-                    updateBattleUI();
-                    if (gameState.enemy.hp <= 0) {
-                        winBattle();
-                    } else {
-                        enemyTurnPhase(`* You attacked! Dealt ${damage} damage.`);
-                    }
+                    gameState.enemy.hp -= damage; updateBattleUI();
+                    if (gameState.enemy.hp <= 0) { winBattle(); } else { enemyTurnPhase(`* You attacked! Dealt ${damage} damage.`); }
                     gameState.battleState = 'WAITING';
                 } else if (gameState.battleState === 'ENEMY_ATTACK') {
                     const boxBounds = defenseBox.getBoundingClientRect();
@@ -602,67 +682,52 @@
                     if (keys['ArrowDown'] || keys['s']) player.soul.y = Math.min(boxBounds.height - playerSoul.clientHeight, player.soul.y + player.soul.speed);
                     if (keys['ArrowLeft'] || keys['a']) player.soul.x = Math.max(0, player.soul.x - player.soul.speed);
                     if (keys['ArrowRight'] || keys['d']) player.soul.x = Math.min(boxBounds.width - playerSoul.clientWidth, player.soul.x + player.soul.speed);
-                    playerSoul.style.left = `${player.soul.x}px`;
-                    playerSoul.style.top = `${player.soul.y}px`;
+                    playerSoul.style.left = `${player.soul.x}px`; playerSoul.style.top = `${player.soul.y}px`;
 
                     projectiles.forEach((p, index) => {
-                        p.x += p.vx;
-                        p.y += p.vy;
-                        p.element.style.left = `${p.x}px`;
-                        p.element.style.top = `${p.y}px`;
+                        if (p.follow) { const dx = player.soul.x - p.x; const dy = player.soul.y - p.y; const dist = Math.sqrt(dx*dx+dy*dy); p.vx += (dx/dist)*0.1; p.vy += (dy/dist)*0.1; }
+                        if (p.growth) { p.width *= p.growth; p.height *= p.growth; p.x -= (p.width * (p.growth - 1))/2; p.y -= (p.height*(p.growth - 1))/2; p.element.style.width = `${p.width}px`; p.element.style.height = `${p.height}px`; p.element.style.left = `${p.x}px`; p.element.style.top = `${p.y}px`; }
+                        else { p.x += p.vx; p.y += p.vy; }
 
-                        if (p.x < -20 || p.x > boxBounds.width || p.y < -20 || p.y > boxBounds.height) {
-                            p.element.remove();
-                            projectiles.splice(index, 1);
-                            return;
-                        }
-
-                        const soulSize = 20;
-                        const projSizeX = p.type === 'circle' ? 10 : 20;
-                        const projSizeY = p.type === 'circle' ? 10 : 5;
+                        if(p.bounces > 0 && (p.y < 0 || p.y > boxBounds.height - p.height)) { p.vy *= -1; p.bounces--; }
+                        if(p.bounces > 0 && (p.x < 0 || p.x > boxBounds.width - p.width)) { p.vx *= -1; p.bounces--; }
                         
-                        if ( player.soul.x < p.x + projSizeX && player.soul.x + soulSize > p.x && player.soul.y < p.y + projSizeY && soulSize + player.soul.y > p.y ) {
-                            player.hp -= gameState.enemy.attackPower;
-                            if(player.hp < 0) player.hp = 0;
+                        p.element.style.left = `${p.x}px`; p.element.style.top = `${p.y}px`;
+                        if (p.x < -40 || p.x > boxBounds.width + 20 || p.y < -40 || p.y > boxBounds.height + 20) { p.element.remove(); projectiles.splice(index, 1); return; }
+                        
+                        const soulSize = 20;
+                        if ( player.soul.x < p.x + p.width && player.soul.x + soulSize > p.x && player.soul.y < p.y + p.height && soulSize + player.soul.y > p.y ) {
+                            player.hp -= p.power; if(player.hp < 0) player.hp = 0;
                             updateBattleUI();
-                            p.element.remove();
-                            projectiles.splice(index, 1);
-                            playerSoul.style.animation = 'hit-flash 0.3s';
-                            setTimeout(() => playerSoul.style.animation = '', 300);
+                            if(p.type !== 'puddle') { p.element.remove(); projectiles.splice(index, 1); }
+                            playerSoul.style.animation = 'hit-flash 0.3s'; setTimeout(() => playerSoul.style.animation = '', 300);
                         }
                     });
                 }
             }
-            
-            clearCanvas();
-            drawScene();
-            if (!gameState.inBattle && !gameState.inDialogue) {
-                drawPlayer();
-            }
+            clearCanvas(); drawScene();
+            if (!gameState.inBattle && !gameState.inDialogue) { drawPlayer(); }
             requestAnimationFrame(gameLoop);
         }
         
         function checkCollisions() {
-            gameState.interactionTarget = null;
-            let target = null;
+            gameState.interactionTarget = null; let target = null;
             switch(gameState.currentScene) {
                 case 'library':
                     target = scenes.library.package;
-                    if (!target.interacted && Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) {
-                        gameState.interactionTarget = 'package';
-                    }
+                    if (!target.interacted && Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'package'; }
+                    break;
+                case 'outside':
+                    target = scenes.outside.trapdoor;
+                    if (target.active && Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'outside_trapdoor'; }
                     break;
                 case 'hallway':
                     target = scenes.hallway.door;
-                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.height) / 2) {
-                        gameState.interactionTarget = 'hallway_door';
-                    }
+                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.height) / 2) { gameState.interactionTarget = 'hallway_door'; }
                     break;
                 case 'magic_world':
                     target = scenes.magic_world.silhouette;
-                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) {
-                        gameState.interactionTarget = 'silhouette';
-                    }
+                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'silhouette'; }
                     break;
             }
         }
@@ -671,6 +736,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             switch(gameState.currentScene) {
                 case 'library': ctx.fillStyle = '#4a2c2a'; break;
+                case 'outside': ctx.fillStyle = '#228B22'; break;
                 case 'battle': ctx.fillStyle = '#000'; break;
                 case 'hallway': ctx.fillStyle = '#333'; break;
                 case 'storage': ctx.fillStyle = '#111'; break;
@@ -685,9 +751,7 @@
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size);
             if (gameState.interactionTarget) {
-                ctx.fillStyle = 'white';
-                ctx.font = '20px VT323';
-                ctx.textAlign = 'center';
+                ctx.fillStyle = 'white'; ctx.font = '20px VT323'; ctx.textAlign = 'center';
                 ctx.fillText('[E]', player.x, player.y - player.size);
             }
         }
@@ -697,36 +761,39 @@
             switch(gameState.currentScene) {
                 case 'library':
                     const pkg = scenes.library.package;
-                    if (!pkg.interacted) {
-                        ctx.fillStyle = pkg.color;
-                        ctx.fillRect(pkg.x - pkg.size / 2, pkg.y - pkg.size / 2, pkg.size, pkg.size);
+                    if (!pkg.interacted) { ctx.fillStyle = pkg.color; ctx.fillRect(pkg.x - pkg.size / 2, pkg.y - pkg.size / 2, pkg.size, pkg.size); }
+                    const door_lib = scenes.library.door; ctx.fillStyle = door_lib.color; ctx.fillRect(door_lib.x - door_lib.size / 2, door_lib.y - door_lib.height / 2, door_lib.size, door_lib.height);
+                    break;
+                case 'outside':
+                    scenes.outside.roamingEnemies.forEach(enemy => {
+                        const data = enemies[enemy.type];
+                        ctx.fillStyle = data.color;
+                        if (data.isCircle) { ctx.beginPath(); ctx.arc(enemy.x, enemy.y, data.size / 3, 0, Math.PI * 2); ctx.fill(); }
+                        else { ctx.fillRect(enemy.x - data.size / 3, enemy.y - data.size / 3, data.size/1.5, data.size/1.5 * 1.5); }
+                    });
+                     scenes.outside.environmentalHazards.forEach(h => { ctx.fillStyle = '#00BFFF'; ctx.fillRect(h.x, h.y, h.width, h.height); });
+                    if(scenes.outside.trapdoor.active) {
+                        const trapdoor = scenes.outside.trapdoor; 
+                        ctx.fillStyle = trapdoor.color; 
+                        ctx.fillRect(trapdoor.x - trapdoor.size / 2, trapdoor.y - trapdoor.size / 2, trapdoor.size, trapdoor.size);
+                        ctx.strokeStyle = '#222';
+                        ctx.lineWidth = 4;
+                        ctx.strokeRect(trapdoor.x - trapdoor.size / 2, trapdoor.y - trapdoor.size / 2, trapdoor.size, trapdoor.size);
                     }
-                    const door_lib = scenes.library.door;
-                    ctx.fillStyle = door_lib.color;
-                    ctx.fillRect(door_lib.x - door_lib.size / 2, door_lib.y - door_lib.height / 2, door_lib.size, door_lib.height);
                     break;
                 case 'battle':
                     const enemy = gameState.enemy;
                     if (enemy) {
                         ctx.fillStyle = enemy.color;
-                        if(enemy.isCircle) {
-                            ctx.beginPath();
-                            ctx.arc(canvas.width / 2, 120, enemy.size / 2, 0, Math.PI * 2);
-                            ctx.fill();
-                        } else {
-                            ctx.fillRect(canvas.width / 2 - enemy.size / 2, 120 - enemy.size / 2, enemy.size, enemy.size * 2);
-                        }
+                        if(enemy.isCircle) { ctx.beginPath(); ctx.arc(canvas.width / 2, 120, enemy.size / 2, 0, Math.PI * 2); ctx.fill(); } 
+                        else { ctx.fillRect(canvas.width / 2 - enemy.size / 2, 120 - enemy.size / 2, enemy.size, enemy.size * (enemy.name === 'Water Bottle' ? 2.5 : 2)); }
                     }
                     break;
                 case 'hallway':
-                    const door_hall = scenes.hallway.door;
-                    ctx.fillStyle = door_hall.color;
-                    ctx.fillRect(door_hall.x - door_hall.size / 2, door_hall.y - door_hall.height / 2, door_hall.size, door_hall.height);
+                    const door_hall = scenes.hallway.door; ctx.fillStyle = door_hall.color; ctx.fillRect(door_hall.x - door_hall.size / 2, door_hall.y - door_hall.height / 2, door_hall.size, door_hall.height);
                     break;
                 case 'magic_world':
-                    const sil = scenes.magic_world.silhouette;
-                    ctx.fillStyle = sil.color;
-                    ctx.fillRect(sil.x - sil.size / 2, sil.y - sil.size / 2, sil.size, sil.size * 2);
+                    const sil = scenes.magic_world.silhouette; ctx.fillStyle = sil.color; ctx.fillRect(sil.x - sil.size / 2, sil.y - sil.size / 2, sil.size, sil.size * 2);
                     break;
             }
             ctx.restore();
