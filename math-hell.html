@@ -1,1 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Hell</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0a0a1a;
+            color: #e0e0e0;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            background: linear-gradient(180deg, #0a0a1a, #1a1a3a);
+            display: block;
+            box-shadow: 0 0 30px rgba(173, 216, 230, 0.5);
+            border: 2px solid #64748b;
+            border-radius: 8px;
+            cursor: none;
+        }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            text-shadow: 0 0 5px #00ffff;
+        }
+        .ui-text {
+            font-size: 1.5rem;
+            color: #00ffff;
+        }
+        #pattern-name {
+            font-size: 1.8rem;
+            color: #ff00ff;
+            text-shadow: 0 0 8px #ff00ff;
+        }
+        #game-over-screen, #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 10, 30, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        h1 {
+            font-size: 4rem;
+            color: #ff00ff;
+            text-shadow: 0 0 10px #ff00ff;
+            margin-bottom: 1rem;
+        }
+        p {
+            font-size: 1.5rem;
+            color: #00ffff;
+            margin-bottom: 2rem;
+        }
+        button {
+            padding: 1rem 2rem;
+            font-size: 1.5rem;
+            color: #0a0a1a;
+            background-color: #00ffff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 0 15px #00ffff;
+            transition: all 0.2s ease-in-out;
+        }
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px #00ffff;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-container">
+        <div><span class="ui-text">HEALTH: </span><span id="health" class="ui-text">100</span></div>
+        <div id="pattern-name" class="ui-text"></div>
+        <div><span class="ui-text">SCORE: </span><span id="score" class="ui-text">0</span></div>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
 
+    <div id="start-screen">
+        <h1>MATH HELL</h1>
+        <p>Dodge the geometric onslaught of mathematical functions.<br>Use Arrow Keys or WASD to move.</p>
+        <button id="startButton">Start Game</button>
+    </div>
+
+    <script>
+        // --- Game Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const healthEl = document.getElementById('health');
+        const scoreEl = document.getElementById('score');
+        const patternNameEl = document.getElementById('pattern-name');
+        
+        const startScreen = document.getElementById('start-screen');
+        const startButton = document.getElementById('startButton');
+
+        let canvasWidth, canvasHeight;
+        
+        function resizeCanvas() {
+            const margin = 40;
+            const topMargin = 100;
+            canvasWidth = window.innerWidth - margin;
+            canvasHeight = window.innerHeight - topMargin;
+            const aspectRatio = 16 / 9;
+            if (canvasWidth / canvasHeight > aspectRatio) {
+                canvasWidth = canvasHeight * aspectRatio;
+            } else {
+                canvasHeight = canvasWidth / aspectRatio;
+            }
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+        }
+
+        // --- Game State ---
+        let player, bullets, keys, score, health, isGameOver, patternScheduler, healthPickups;
+        let lastTime = 0;
+        let gameRunning = false;
+
+        // --- Game Objects ---
+        const playerState = {
+            width: 30,
+            height: 30,
+            speed: 500, // pixels per second
+            color: '#00ffff',
+            hitboxColor: 'rgba(255, 255, 255, 0.8)',
+            invincibilityDuration: 1.5, // seconds
+            isInvincible: false,
+            invincibilityTimer: 0,
+            x: 0,
+            y: 0,
+            // Dash properties
+            isDashing: false,
+            dashDuration: 0.08, // seconds
+            dashTimer: 0,
+            dashSpeed: 1250, // pixels per second for the dash
+            dashCooldown: 0.6, // 0.6 second cooldown
+            dashCooldownTimer: 0,
+            lastMoveDx: 0,
+            lastMoveDy: -1, // Default to dashing upwards
+            dashTrail: [],
+        };
+
+        const bulletState = {
+            radius: 5,
+            speed: 200,
+        };
+
+        const keysState = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            x: false,
+            z: false,
+            ' ': false,
+        };
+
+        // --- Math & Helper Functions ---
+        
+        /**
+         * Approximates the Riemann Zeta function ζ(s) for a complex number s = re + i*im
+         * using the Dirichlet series sum up to N terms. This is computationally intensive.
+         * ζ(s) = Σ (1/n^s) from n=1 to N
+         * n^-s = n^-(re) * (cos(im * log(n)) - i * sin(im * log(n)))
+         */
+        function riemannZeta(re, im, terms = 50) {
+            let sumRe = 0;
+            let sumIm = 0;
+            for (let n = 1; n <= terms; n++) {
+                const n_re = Math.pow(n, -re);
+                const angle = -im * Math.log(n);
+                sumRe += n_re * Math.cos(angle);
+                sumIm += n_re * Math.sin(angle);
+            }
+            return { re: sumRe, im: sumIm };
+        }
+
+        // --- Game Patterns ---
+        const patterns = [
+            {
+                name: "y = A sin(kx)",
+                duration: 15,
+                init: function(origin) {
+                    this.time = 0;
+                    this.amplitude = canvasHeight / 4;
+                    this.frequency = 5;
+                    this.spawnRate = 0.05; // lower is faster
+                    this.lastSpawn = 0;
+                    this.waveCount = 0;
+                },
+                update: function(deltaTime, origin, bullets) {
+                    this.time += deltaTime;
+                    if (this.time - this.lastSpawn > this.spawnRate) {
+                        this.lastSpawn = this.time;
+                        const x = (this.time * bulletState.speed * 0.5) % (canvasWidth + 100) - 50;
+                        const yOffset = this.amplitude * Math.sin((x / canvasWidth) * 2 * Math.PI * this.frequency);
+                        
+                        bullets.push(createBullet(x, origin.y + yOffset, {
+                            color: '#ff69b4', 
+                            vy: 100 * (this.waveCount % 2 === 0 ? 1 : -1)
+                        }));
+
+                        if (x > canvasWidth - 10) this.waveCount++;
+                    }
+                }
+            },
+            {
+                name: "Logarithmic Spiral",
+                duration: 15,
+                init: function(origin) {
+                    this.angle = 0;
+                    this.a = 5; // controls distance from center
+                    this.b = 0.2; // controls tightness of spiral
+                    this.spawnRate = 0.02;
+                    this.lastSpawn = 0;
+                    this.time = 0;
+                    this.arms = 3;
+                },
+                update: function(deltaTime, origin, bullets) {
+                    this.time += deltaTime;
+                    this.angle += 3 * deltaTime;
+                     if (this.time - this.lastSpawn > this.spawnRate) {
+                        this.lastSpawn = this.time;
+                        for (let i = 0; i < this.arms; i++) {
+                            const armAngle = this.angle + (i * 2 * Math.PI / this.arms);
+                            const r = this.a * Math.exp(this.b * this.angle);
+                            const x = origin.x + r * Math.cos(armAngle);
+                            const y = origin.y + r * Math.sin(armAngle);
+                            
+                            if (r < canvasWidth * 0.8) {
+                                bullets.push(createBullet(x, y, {
+                                    color: '#ffff00', 
+                                    speed: 150,
+                                    angle: armAngle + Math.PI / 2 // shoot outwards
+                                }));
+                            }
+                        }
+                    }
+                    if (this.a * Math.exp(this.b * this.angle) > canvasWidth) {
+                        this.angle = 0; // reset
+                    }
+                }
+            },
+            {
+                name: "Riemann Zeta ζ(0.5 + it)",
+                duration: 20,
+                init: function(origin) {
+                    this.points = [];
+                    this.pointIndex = 0;
+                    this.t = 0;
+                    this.scale = 80;
+                    this.spawnRate = 0.03;
+                    this.lastSpawn = 0;
+                    this.time = 0;
+
+                    // Pre-calculate points to avoid lag
+                    console.log("Pre-calculating Riemann Zeta points...");
+                    for (let i = 0; i < 1000; i++) {
+                        const val = riemannZeta(0.5, this.t);
+                        this.points.push({ x: val.re * this.scale, y: val.im * this.scale });
+                        this.t += 0.1;
+                    }
+                    console.log("Calculation complete.");
+                },
+                update: function(deltaTime, origin, bullets) {
+                     this.time += deltaTime;
+                     if (this.time - this.lastSpawn > this.spawnRate) {
+                        this.lastSpawn = this.time;
+                        const point = this.points[this.pointIndex];
+                        const x = origin.x + point.x;
+                        const y = origin.y + point.y;
+                        bullets.push(createBullet(x, y, { color: '#ff4500' }));
+                        
+                        this.pointIndex = (this.pointIndex + 1) % this.points.length;
+                    }
+                }
+            },
+            {
+                name: "Lissajous Curve",
+                duration: 15,
+                init: function(origin) {
+                    this.time = 0;
+                    this.A = canvasWidth * 0.4;
+                    this.B = canvasHeight * 0.4;
+                    this.a = 3; // frequency x
+                    this.b = 4; // frequency y
+                    this.delta = Math.PI / 2;
+                    this.spawnRate = 0.01;
+                    this.lastSpawn = 0;
+                },
+                update: function(deltaTime, origin, bullets) {
+                    this.time += deltaTime;
+                    if (this.time - this.lastSpawn > this.spawnRate) {
+                        this.lastSpawn = this.time;
+                        const x = origin.x + this.A * Math.sin(this.a * this.time + this.delta);
+                        const y = origin.y + this.B * Math.sin(this.b * this.time);
+                        bullets.push(createBullet(x, y, { color: '#32cd32', speed: 100, angle: this.time * 5 }));
+                    }
+                }
+            },
+            {
+                name: "Tangent Burst",
+                duration: 10,
+                init: function(origin) {
+                    this.time = 0;
+                    this.angle = 0;
+                    this.burstRate = 1.5; // seconds per burst
+                    this.lastBurst = 0;
+                },
+                update: function(deltaTime, origin, bullets) {
+                    this.time += deltaTime;
+                    if (this.time - this.lastBurst > this.burstRate) {
+                        this.lastBurst = this.time;
+                        this.angle += 0.5; // rotate burst slightly each time
+                        for (let i = 0; i < 50; i++) {
+                            const x = (i / 50 - 0.5) * 2; // -1 to 1
+                            if (Math.abs(x) > 0.95) continue; // avoid extreme values
+                            
+                            const y = Math.tan(x * Math.PI / 2.1); // use tan to get a spread
+                            
+                            const magnitude = Math.sqrt(x * x + y * y);
+                            const dirX = x / magnitude;
+                            const dirY = y / magnitude;
+
+                            // Rotate the vector
+                            const rotatedX = dirX * Math.cos(this.angle) - dirY * Math.sin(this.angle);
+                            const rotatedY = dirX * Math.sin(this.angle) + dirY * Math.cos(this.angle);
+
+                            bullets.push(createBullet(origin.x, origin.y, {
+                                color: '#8a2be2',
+                                vx: rotatedX * bulletState.speed * 1.5,
+                                vy: rotatedY * bulletState.speed * 1.5,
+                            }));
+                        }
+                    }
+                }
+            }
+        ];
+        
+        class PatternScheduler {
+            constructor(patterns) {
+                this.patterns = patterns;
+                this.enemyOrigin = { x: canvasWidth / 2, y: canvasHeight / 2 };
+                this.reset();
+            }
+
+            reset() {
+                this.currentPatternIndex = -1;
+                this.patternTimer = 0;
+                this.shuffledPatterns = [...this.patterns].sort(() => Math.random() - 0.5);
+                this.nextPattern();
+            }
+
+            nextPattern() {
+                this.currentPatternIndex = (this.currentPatternIndex + 1) % this.shuffledPatterns.length;
+                this.currentPattern = this.shuffledPatterns[this.currentPatternIndex];
+                this.patternTimer = 0;
+
+                // Center enemy origin for some patterns, top for others
+                if (this.currentPattern.name.includes("sin")) {
+                    this.enemyOrigin = { x: canvasWidth / 2, y: 100 };
+                } else {
+                    this.enemyOrigin = { x: canvasWidth / 2, y: canvasHeight / 2 };
+                }
+                
+                this.currentPattern.init(this.enemyOrigin);
+                patternNameEl.textContent = this.currentPattern.name;
+            }
+
+            update(deltaTime, bullets) {
+                this.patternTimer += deltaTime;
+                if (this.patternTimer > this.currentPattern.duration) {
+                    // Spawn health pickups before switching pattern
+                    for (let i = 0; i < 2; i++) {
+                        const padding = 50;
+                        const randX = Math.random() * (canvasWidth - padding * 2) + padding;
+                        const randY = Math.random() * (canvasHeight - padding * 2) + padding;
+                        healthPickups.push(createHealthPickup(randX, randY));
+                    }
+                    this.nextPattern();
+                }
+                this.currentPattern.update(deltaTime, this.enemyOrigin, bullets);
+            }
+        }
+
+        function createHealthPickup(x, y) {
+            return {
+                x: x,
+                y: y,
+                radius: 12,
+                color: '#4ade80', // A nice green
+            };
+        }
+
+        function createBullet(x, y, options = {}) {
+            const bullet = {
+                x: x,
+                y: y,
+                radius: options.radius || bulletState.radius,
+                color: options.color || 'red',
+                speed: options.speed || bulletState.speed,
+                spawnTime: performance.now(),
+                vx: 0,
+                vy: 0,
+            };
+
+            if (options.angle !== undefined) {
+                bullet.vx = Math.cos(options.angle) * bullet.speed;
+                bullet.vy = Math.sin(options.angle) * bullet.speed;
+            } else if (options.vx !== undefined && options.vy !== undefined) {
+                bullet.vx = options.vx;
+                bullet.vy = options.vy;
+            } else { // default to moving towards player
+                if(player) {
+                    const dx = player.x - x;
+                    const dy = player.y - y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > 0) {
+                        bullet.vx = (dx / dist) * bullet.speed;
+                        bullet.vy = (dy / dist) * bullet.speed;
+                    } else {
+                        bullet.vx = 0;
+                        bullet.vy = bullet.speed;
+                    }
+                } else {
+                    bullet.vx = 0;
+                    bullet.vy = bullet.speed;
+                }
+            }
+            return bullet;
+        }
+        
+        function startDash() {
+            // Can only dash if not already dashing and cooldown is over
+            if (!player.isDashing && player.dashCooldownTimer <= 0) {
+                player.isDashing = true;
+                player.dashTimer = player.dashDuration;
+                player.dashCooldownTimer = player.dashCooldown;
+
+                // Make player invincible for at least the dash duration
+                player.isInvincible = true;
+                player.invincibilityTimer = Math.max(player.invincibilityTimer, player.dashDuration);
+                
+                player.dashTrail = []; // Clear previous trail
+            }
+        }
+
+        // --- Game Logic ---
+        function init() {
+            resizeCanvas();
+            isGameOver = false;
+            score = 0;
+            health = 100;
+
+            player = { ...playerState };
+            player.x = canvasWidth / 2;
+            player.y = canvasHeight - 50;
+
+            // Add a grace period of invincibility on start/restart
+            player.isInvincible = true;
+            player.invincibilityTimer = 2.0; // 2 seconds of spawn protection
+
+            bullets = [];
+            healthPickups = [];
+            keys = { ...keysState };
+            
+            patternScheduler = new PatternScheduler(patterns);
+
+            healthEl.textContent = health;
+            scoreEl.textContent = score;
+        }
+
+        function update(deltaTime) {
+            if (isGameOver) return;
+            
+            // Update dash cooldown
+            if (player.dashCooldownTimer > 0) {
+                player.dashCooldownTimer -= deltaTime;
+            }
+
+            // Handle dashing state
+            if (player.isDashing) {
+                player.dashTimer -= deltaTime;
+                if (player.dashTimer <= 0) {
+                    player.isDashing = false;
+                }
+                
+                // Add current position to the trail
+                player.dashTrail.push({x: player.x, y: player.y});
+                if (player.dashTrail.length > 10) { // Limit trail length
+                    player.dashTrail.shift();
+                }
+                
+                // Apply dash movement
+                player.x += player.lastMoveDx * player.dashSpeed * deltaTime;
+                player.y += player.lastMoveDy * player.dashSpeed * deltaTime;
+
+            } else {
+                // Regular player movement
+                let currentSpeed = player.speed;
+                if (keys.x) {
+                    currentSpeed /= 2;
+                }
+
+                let dx = 0;
+                let dy = 0;
+                if (keys.ArrowUp || keys.w) dy -= 1;
+                if (keys.ArrowDown || keys.s) dy += 1;
+                if (keys.ArrowLeft || keys.a) dx -= 1;
+                if (keys.ArrowRight || keys.d) dx += 1;
+
+                if (dx !== 0 || dy !== 0) {
+                    const magnitude = Math.sqrt(dx * dx + dy * dy);
+                    const normalizedDx = dx / magnitude;
+                    const normalizedDy = dy / magnitude;
+                    
+                    // Store last movement direction for dashing
+                    player.lastMoveDx = normalizedDx;
+                    player.lastMoveDy = normalizedDy;
+
+                    player.x += normalizedDx * currentSpeed * deltaTime;
+                    player.y += normalizedDy * currentSpeed * deltaTime;
+                }
+            }
+
+            // Keep player within canvas bounds
+            player.x = Math.max(player.width / 2, Math.min(canvasWidth - player.width / 2, player.x));
+            player.y = Math.max(player.height / 2, Math.min(canvasHeight - player.height / 2, player.y));
+
+            // Invincibility Timer
+            if (player.isInvincible) {
+                player.invincibilityTimer -= deltaTime;
+                if (player.invincibilityTimer <= 0) {
+                    player.isInvincible = false;
+                }
+            }
+
+            // Manual invincibility by holding 'Space'
+            if (keys[' ']) {
+                player.isInvincible = true;
+            }
+
+            // Update pattern scheduler
+            patternScheduler.update(deltaTime, bullets);
+
+            // Update bullets and check collisions
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.x += bullet.vx * deltaTime;
+                bullet.y += bullet.vy * deltaTime;
+
+                // Remove off-screen bullets
+                if (bullet.x < -50 || bullet.x > canvasWidth + 50 || bullet.y < -50 || bullet.y > canvasHeight + 50) {
+                    bullets.splice(i, 1);
+                    score += 10;
+                }
+
+                // Collision with player
+                if (!player.isInvincible) {
+                    const dist = Math.hypot(player.x - bullet.x, player.y - bullet.y);
+                    if (dist < player.width / 4 + bullet.radius) { // Using a smaller player hitbox
+                        bullets.splice(i, 1);
+                        health -= 10;
+                        player.isInvincible = true;
+                        player.invincibilityTimer = player.invincibilityDuration;
+                        if (health <= 0) {
+                            health = 0;
+                            isGameOver = true;
+                            endGame();
+                        }
+                    }
+                }
+            }
+            
+            // Update health pickups and check collisions
+            for (let i = healthPickups.length - 1; i >= 0; i--) {
+                const pickup = healthPickups[i];
+                
+                // Collision with player
+                const dist = Math.hypot(player.x - pickup.x, player.y - pickup.y);
+                if (dist < player.width / 2 + pickup.radius) {
+                    health = Math.min(100, health + 25); // Heal for 25, cap at 100
+                    healthPickups.splice(i, 1);
+                }
+            }
+
+            scoreEl.textContent = score;
+            healthEl.textContent = health;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            // Draw bullets
+            bullets.forEach(bullet => {
+                ctx.beginPath();
+                ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+                ctx.fillStyle = bullet.color;
+                ctx.shadowColor = bullet.color;
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.closePath();
+            });
+            ctx.shadowBlur = 0;
+
+            // Draw health pickups
+            healthPickups.forEach(pickup => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(pickup.x, pickup.y, pickup.radius, 0, Math.PI * 2);
+                ctx.fillStyle = pickup.color;
+                ctx.shadowColor = pickup.color;
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.closePath();
+                
+                // Draw a '+' symbol inside
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#0a0a1a';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(pickup.x, pickup.y - pickup.radius * 0.5);
+                ctx.lineTo(pickup.x, pickup.y + pickup.radius * 0.5);
+                ctx.moveTo(pickup.x - pickup.radius * 0.5, pickup.y);
+                ctx.lineTo(pickup.x + pickup.radius * 0.5, pickup.y);
+                ctx.stroke();
+                ctx.restore();
+            });
+            ctx.shadowBlur = 0;
+
+            // Draw dash trail
+            if (player.dashTrail.length > 0) {
+                player.dashTrail.forEach((pos, index) => {
+                    const opacity = (index + 1) / player.dashTrail.length * 0.4;
+                    ctx.globalAlpha = opacity;
+                    ctx.beginPath();
+                    ctx.moveTo(pos.x, pos.y - player.height / 2);
+                    ctx.lineTo(pos.x - player.width / 2, pos.y + player.height / 2);
+                    ctx.lineTo(pos.x + player.width / 2, pos.y + player.height / 2);
+                    ctx.closePath();
+                    ctx.fillStyle = player.color;
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1.0; // Reset alpha
+            }
+
+            // Draw player
+            const flash = player.isInvincible && !player.isDashing && Math.floor(player.invincibilityTimer * 10) % 2 === 0;
+            
+            // If manually holding 'Space' for invincibility, always draw the player instead of flashing.
+            if (keys[' '] || !flash) {
+                 // Player ship body
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y - player.height / 2);
+                ctx.lineTo(player.x - player.width / 2, player.y + player.height / 2);
+                ctx.lineTo(player.x + player.width / 2, player.y + player.height / 2);
+                ctx.closePath();
+                ctx.fillStyle = player.color;
+                ctx.shadowColor = player.color;
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Player hitbox indicator
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.width / 4, 0, Math.PI * 2);
+                ctx.fillStyle = player.hitboxColor;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+        
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+            const deltaTime = (timestamp - lastTime) / 1000; // in seconds
+            lastTime = timestamp;
+
+            update(deltaTime);
+            draw();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            init();
+            gameRunning = true;
+            startScreen.style.display = 'none';
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            gameRunning = false;
+            // Auto-restart the game after a 1.5-second delay
+            setTimeout(startGame, 1500);
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key in keys) keys[e.key] = true;
+            if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = true;
+            if (e.code === 'Space') {
+                e.preventDefault(); // Prevent spacebar from scrolling the page
+            }
+            if (e.key.toLowerCase() === 'z') {
+                startDash();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key in keys) keys[e.key] = false;
+            if (e.key.toLowerCase() in keys) keys[e.key.toLowerCase()] = false;
+        });
+        
+        startButton.addEventListener('click', () => {
+             startGame();
+        });
+        
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initial setup
+        resizeCanvas();
+
+    </script>
+</body>
+</html>
