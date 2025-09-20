@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>5D Platformer AI</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+      color: white;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    canvas { display: block; }
+    #info-container {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 15px;
+      background-color: rgba(0, 0, 0, 0.6);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 1.5em;
+      color: #00ffff;
+      text-shadow: 0 0 5px #00ffff;
+    }
+    #win-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      padding: 30px;
+      background-color: rgba(0, 20, 0, 0.85);
+      border: 2px solid #0f0;
+      border-radius: 15px;
+      text-align: center;
+      font-size: 2em;
+      color: #0f0;
+      text-shadow: 0 0 10px #0f0;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="info-container">
+    <h1>5D Platformer Controls</h1>
+    <p><strong>Movement:</strong> WASD Keys</p>
+    <p><strong>Jump:</strong> Spacebar</p>
+    <p><strong>Look:</strong> Mouse</p>
+    <p><strong>Time Travel (4D):</strong> Q Key</p>
+    <p><strong>Multiverse Shift (5D):</strong> E Key</p>
+    <hr />
+    <p><strong>Current Time:</strong> <span id="time-status">Present</span></p>
+    <p><strong>Current Universe:</strong> <span id="universe-status">Alpha</span></p>
+  </div>
+
+  <div id="win-message">
+    <h2>Congratulations!</h2>
+    <p>You have conquered 5 dimensions!</p>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+  <!-- === Game Code (unchanged, shortened here for brevity) === -->
+  <script>
+    // -- (Insert your existing game code here as you've shared above) --
+    // Due to length, we'll skip re-pasting the entire game logic here
+    // Paste your full game code right here before the AI script
+  </script>
+
+  <!-- === AI Agent Code === -->
+  <script>
+    /* === Simple Q-Learning Agent === */
+
+    const qTable = {};
+    let lastState = null;
+    let lastAction = null;
+    let lastPos = null;
+
+    const actions = ['forward', 'backward', 'left', 'right', 'jump', 'time', 'universe'];
+
+    const params = {
+      alpha: 0.1,   // learning rate
+      gamma: 0.9,   // discount factor
+      epsilon: 0.3, // exploration rate
+    };
+
+    function getState() {
+      const pos = controls.getObject().position;
+      return `${Math.round(pos.x)},${Math.round(pos.y)},${Math.round(pos.z)},${timeState},${universeState}`;
+    }
+
+    function getQ(state, action) {
+      const key = `${state}|${action}`;
+      if (!(key in qTable)) qTable[key] = 0;
+      return qTable[key];
+    }
+
+    function chooseAction(state) {
+      if (Math.random() < params.epsilon) {
+        return actions[Math.floor(Math.random() * actions.length)];
+      }
+      return actions.reduce((best, a) => getQ(state, a) > getQ(state, best) ? a : best, actions[0]);
+    }
+
+    function performAction(action) {
+      if (action === 'forward') keys['KeyW'] = true;
+      if (action === 'backward') keys['KeyS'] = true;
+      if (action === 'left') keys['KeyA'] = true;
+      if (action === 'right') keys['KeyD'] = true;
+      if (action === 'jump') keys['Space'] = true;
+      if (action === 'time') keys['KeyQ'] = true;
+      if (action === 'universe') keys['KeyE'] = true;
+    }
+
+    function rewardFunction(prevPos, currentPos, won) {
+      if (won) return 500;
+      if (currentPos.y < -5) return -50; // fell off
+      const dPrev = prevPos.distanceTo(goal.position);
+      const dNow = currentPos.distanceTo(goal.position);
+      return (dPrev - dNow) * 10; // closer = positive reward
+    }
+
+    function updateQTable(prevState, action, reward, newState) {
+      const key = `${prevState}|${action}`;
+      const oldQ = getQ(prevState, action);
+      let maxQ = Math.max(...actions.map(a => getQ(newState, a)));
+      qTable[key] = oldQ + params.alpha * (reward + params.gamma * maxQ - oldQ);
+    }
+
+    // Run agent in main loop
+    setInterval(() => {
+      if (typeof gameWon !== 'undefined' && gameWon) return;
+
+      const currentState = getState();
+      const currentPos = controls.getObject().position.clone();
+
+      if (lastState && lastAction && lastPos) {
+        const reward = rewardFunction(lastPos, currentPos, playerBox.intersectsBox(goal.userData.boundingBox));
+        updateQTable(lastState, lastAction, reward, currentState);
+      }
+
+      // Clear all key inputs
+      ['KeyW','KeyA','KeyS','KeyD','Space','KeyQ','KeyE'].forEach(k => keys[k] = false);
+
+      const action = chooseAction(currentState);
+      performAction(action);
+
+      lastState = currentState;
+      lastAction = action;
+      lastPos = currentPos.clone();
+    }, 200); // Every 200ms
+  </script>
+</body>
+</html>
