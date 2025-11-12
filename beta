@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Duck's Roguelike Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c; /* gray-900 */
+            color: #f7fafc; /* gray-100 */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            background-color: #2d3748; /* gray-800 */
+            border: 4px solid #4a5568; /* gray-700 */
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        #hud {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            padding: 0 1rem;
+            font-size: 0.9rem;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: #2d3748; /* gray-800 */
+            padding: 2rem;
+            border: 4px solid #4a5568; /* gray-700 */
+            text-align: center;
+            max-width: 90%;
+            width: 600px;
+        }
+        
+        .item-card {
+            background-color: #4a5568; /* gray-700 */
+            border: 2px solid #718096; /* gray-600 */
+            padding: 1rem;
+            margin: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .item-card:hover {
+            background-color: #718096; /* gray-600 */
+            border-color: #a0aec0; /* gray-500 */
+            transform: translateY(-5px);
+        }
+        .button {
+            background-color: #4299e1; /* blue-500 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+            margin-top: 1rem;
+        }
+        .button:hover {
+            background-color: #3182ce; /* blue-600 */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container" class="game-container">
+        <div id="hud">
+            <div id="health-container">Health: <span id="health">100 / 100</span></div>
+            <div id="floor-container">Floor: <span id="floor">1</span></div>
+            <div id="timer-container">Time: <span id="timer">00:00.000</span></div>
+            <div id="inventory-container">Inventory: <span id="inventory"></span></div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <!-- MODALS -->
+    <div id="start-screen" class="modal">
+        <div class="modal-content">
+            <h1 class="text-3xl mb-4">Weather Duck's Adventure</h1>
+            <p class="mb-6">IMT Lazarus has stolen the weather! Help the Weather Duck get it back.</p>
+            <p class="mb-2 text-sm">WASD to Move</p>
+            <p class="mb-6 text-sm">Arrow Keys to Shoot</p>
+            <button id="start-button" class="button">Start Game</button>
+        </div>
+    </div>
+
+    <div id="item-selection-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-2xl mb-4">Floor Cleared! Choose an Upgrade.</h2>
+            <div id="item-choices" class="grid md:grid-cols-3 gap-4"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl mb-4 text-red-500">GAME OVER</h2>
+            <p class="mb-6">The weather remains in the clutches of IMT Lazarus...</p>
+            <p class="mb-6">Time: <span id="final-time-game-over"></span></p>
+            <button id="restart-button" class="button">Try Again</button>
+        </div>
+    </div>
+
+    <div id="win-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl mb-4 text-yellow-400">YOU WIN!</h2>
+            <p class="mb-6">You defeated IMT Lazarus and restored the weather! The world is soggy and grateful.</p>
+            <p class="mb-6">Final Time: <span id="final-time-win"></span></p>
+            <button id="play-again-button" class="button">Play Again</button>
+        </div>
+    </div>
+
+    <div id="post-boss-screen" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl mb-4 text-yellow-400">IMT Lazarus Defeated!</h2>
+            <p class="mb-6">You have restored balance to the weather, but a strange power still emanates from the dungeon... Do you retire a hero, or press onward into the unknown?</p>
+            <p class="mb-6">Time: <span id="final-time-post-boss"></span></p>
+            <div class="flex justify-center gap-4">
+                <button id="finish-game-button" class="button">Finish Game</button>
+                <button id="continue-game-button" class="button">Continue Adventure</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // --- UI Elements ---
+            const hud = {
+                health: document.getElementById('health'),
+                floor: document.getElementById('floor'),
+                inventory: document.getElementById('inventory'),
+                timer: document.getElementById('timer')
+            };
+            const startScreen = document.getElementById('start-screen');
+            const itemSelectionScreen = document.getElementById('item-selection-screen');
+            const gameOverScreen = document.getElementById('game-over-screen');
+            const winScreen = document.getElementById('win-screen');
+            const postBossScreen = document.getElementById('post-boss-screen');
+
+            const startButton = document.getElementById('start-button');
+            const restartButton = document.getElementById('restart-button');
+            const playAgainButton = document.getElementById('play-again-button');
+            const finishGameButton = document.getElementById('finish-game-button');
+            const continueGameButton = document.getElementById('continue-game-button');
+            
+            // --- Game Constants ---
+            const PLAYER_SIZE = 30;
+            const ENEMY_SIZE = 30;
+            const BULLET_SIZE = 10;
+            const ROOM_PADDING = 50;
+            const DOOR_WIDTH = 80;
+            const DOOR_THICKNESS = 10;
+            
+            let gameState = 'start'; // 'start', 'playing', 'item_selection', 'game_over', 'win'
+            
+            // --- Game State Variables ---
+            let player, enemies, bullets, enemyBullets, floor, keys = {}, lastShotTime, doors, endlessMode, explosions;
+            let mudPuddles, telegraphs, playerShield;
+            let startTime, finalTime;
+
+            // --- Item Definitions ---
+            const ITEMS = [
+                // Stat increases
+                { name: 'Featherlight Boots', description: '+20% Speed', type: 'stat', effect: p => p.speed *= 1.2 },
+                { name: 'Heavy Raincoat', description: '+25 Max Health', type: 'stat', effect: p => { p.maxHealth += 25; p.health += 25; }},
+                { name: 'Stronger Wings', description: '+20% Damage', type: 'stat', effect: p => p.damage *= 1.2 },
+                { name: 'Rapid-Fire Beak', description: '-20% Fire Delay', type: 'stat', effect: p => p.fireRate *= 0.8 },
+                { name: 'Lucky Clover', description: '+10% Crit Chance', type: 'stat', effect: p => p.critChance += 0.1 },
+                { name: 'Sharpened Beak', description: '+50% Crit Damage', type: 'stat', effect: p => p.critDamage += 0.5 },
+                // Bullet effects
+                { name: 'Thunderstorm', description: 'Bullets may chain lightning to nearby enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('thunderstorm') },
+                { name: 'Blizzard', description: 'Bullets have a chance to freeze enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('blizzard') },
+                { name: 'Ricochet Rain', description: 'Bullets bounce off walls once.', type: 'bullet_effect', effect: p => p.bulletEffects.push('ricochet') },
+                { name: 'Homing Missiles', description: 'Bullets will seek out nearby enemies.', type: 'bullet_effect', effect: p => p.bulletEffects.push('homing') },
+                { name: 'Piercing Rounds', description: 'Bullets can pierce through one enemy.', type: 'bullet_effect', effect: p => p.bulletEffects.push('piercing') },
+                { name: 'Gravity Well', description: 'Bullets temporarily slow enemies on hit.', type: 'bullet_effect', effect: p => p.bulletEffects.push('gravity_well') },
+                { name: 'Unstable Ordinance', description: 'Bullets have a 20% chance to explode on impact.', type: 'bullet_effect', effect: p => p.bulletEffects.push('unstable_ordinance') },
+                // Math functions
+                { name: 'Sine Wave Shot', description: 'Bullets travel in a sine wave pattern.', type: 'bullet_effect', effect: p => p.bulletEffects.push('sine_wave') },
+                { name: 'Logarithmic Decay', description: 'Bullets shrink over their lifetime.', type: 'bullet_effect', effect: p => p.bulletEffects.push('log_decay') },
+                { name: 'Exponential Growth', description: 'Bullets grow over their lifetime.', type: 'bullet_effect', effect: p => p.bulletEffects.push('exponential') },
+                // Specials
+                { name: 'Tangent Shot', description: 'Fire two additional bullets at slight angles.', type: 'special', effect: p => p.bulletEffects.push('tangent') },
+                { name: 'Fibonacci Spiral', description: 'Fire a spiral of bullets occasionally.', type: 'special', effect: p => p.bulletEffects.push('fibonacci') },
+                // *** NEW ITEMS ***
+                { name: 'Regenerative Down', description: 'Heal 1 HP every 5 seconds.', type: 'special', effect: p => p.bulletEffects.push('regen') },
+                { name: 'Weather Shield', description: 'A water orb blocks one shot (15s Cooldown).', type: 'special', effect: p => p.bulletEffects.push('shield') },
+            ];
+
+            const ENDLESS_ITEMS = [
+                { name: 'Gale Force Wings', description: '+50% Damage', type: 'stat', effect: p => p.damage *= 1.5 },
+                { name: 'Storm God\'s Armor', description: '+100 Max Health', type: 'stat', effect: p => { p.maxHealth += 100; p.health += 100; }},
+                { name: 'Hyper-Velocity Beak', description: '-30% Fire Delay', type: 'stat', effect: p => p.fireRate *= 0.7 },
+                { name: 'Eye of the Hurricane', description: 'Fire bullets in 4 directions.', type: 'special', effect: p => p.bulletEffects.push('hurricane') },
+                { name: 'Absolute Zero', description: 'Blizzard freeze is now permanent on non-bosses.', type: 'bullet_effect', effect: p => p.bulletEffects.push('absolute_zero') },
+                // *** NEW ENDLESS ITEMS ***
+                { name: 'Quantum Tunneling', description: 'Your bullets pass through walls.', type: 'bullet_effect', effect: p => p.bulletEffects.push('quantum') },
+                { name: 'Super Crit', description: '+25% Crit Chance, +100% Crit Damage', type: 'stat', effect: p => { p.critChance += 0.25; p.critDamage += 1.0; } },
+            ];
+
+            // --- Initialization ---
+            function init() {
+                canvas.width = 800;
+                canvas.height = 600;
+
+                player = {
+                    x: canvas.width / 2 - PLAYER_SIZE / 2,
+                    y: canvas.height / 2 - PLAYER_SIZE / 2,
+                    width: PLAYER_SIZE,
+                    height: PLAYER_SIZE,
+                    speed: 250, // pixels per second
+                    health: 100,
+                    maxHealth: 100,
+                    damage: 10,
+                    fireRate: 500, // ms between shots
+                    critChance: 0.05,
+                    critDamage: 1.5,
+                    bulletEffects: [],
+                    inventory: [],
+                    invincible: false,
+                    invincibilityEndTime: 0,
+                    regenTimer: 0, // For new 'regen' item
+                    isSlowed: false
+                };
+                
+                playerShield = null; // For new 'shield' item
+
+                floor = 0;
+                keys = {};
+                lastShotTime = 0;
+                lastTime = 0;
+                endlessMode = false;
+                explosions = [];
+                mudPuddles = [];
+                telegraphs = [];
+                
+                nextLevel();
+            }
+
+            function nextLevel() {
+                floor++;
+                player.x = canvas.width / 2 - PLAYER_SIZE / 2;
+                player.y = canvas.height - ROOM_PADDING - PLAYER_SIZE - 20;
+                
+                // Give player invincibility at the start of a new floor
+                player.invincible = true;
+                player.invincibilityEndTime = Date.now() + 3000; // 3 seconds
+                
+                // Reset room-specific elements
+                mudPuddles = [];
+                telegraphs = [];
+
+                generateRoom();
+                gameState = 'playing';
+                updateHUD();
+            }
+            
+            function generateRoom() {
+                enemies = [];
+                bullets = [];
+                enemyBullets = [];
+                explosions = [];
+                
+                let enemyCount = Math.floor(2 + floor * 1.5);
+                if (endlessMode) {
+                    enemyCount = Math.floor(enemyCount * 1.5);
+                }
+
+                // *** NEW BOSS LOGIC ***
+                if (floor % 5 === 0) { // Boss floor
+                    if (floor === 5) {
+                        enemies.push(createGroundskeeperBoss());
+                    } else if (floor === 10) {
+                        enemies.push(createLazarusBoss());
+                    } else if (floor === 15) {
+                        enemies.push(createWatcherBoss());
+                    } else if (floor === 20) {
+                        enemies.push(createCoreBoss());
+                    } else if (floor > 20) {
+                        // Endless bosses: pick one at random and buff it
+                        const bossTypes = [createGroundskeeperBoss, createLazarusBoss, createWatcherBoss, createCoreBoss];
+                        const boss = bossTypes[Math.floor(Math.random() * bossTypes.length)]();
+                        const scale = (floor / 20) * 1.5;
+                        boss.health = (boss.maxHealth * scale * 2); // Get much harder
+                        boss.maxHealth = (boss.maxHealth * scale * 2);
+                        boss.damage *= (scale * 1.2);
+                        enemies.push(boss);
+                    }
+                } else {
+                    // *** NEW ENEMY SPAWN LOGIC ***
+                    for (let i = 0; i < enemyCount; i++) {
+                        let x, y;
+                        do {
+                            x = ROOM_PADDING + Math.random() * (canvas.width - ROOM_PADDING * 2 - ENEMY_SIZE);
+                            y = ROOM_PADDING + Math.random() * (canvas.height - ROOM_PADDING * 2 - ENEMY_SIZE);
+                        } while (Math.hypot(x - player.x, y - player.y) < 200); // Don't spawn on top of player
+
+                        const rand = Math.random();
+                        if (floor > 6 && rand < 0.15) {
+                            enemies.push(createSniperEnemy(x, y));
+                        } else if (floor > 4 && rand < 0.3) {
+                            enemies.push(createSummonerEnemy(x, y));
+                        } else if (floor > 2 && rand < 0.5) {
+                            enemies.push(createChargerEnemy(x, y));
+                        } else if (floor > 3 && rand < 0.7) {
+                            enemies.push(createRangedEnemy(x, y));
+                        } else {
+                            enemies.push(createEnemy(x, y));
+                        }
+                    }
+                }
+
+                doors = [
+                    { x: canvas.width / 2 - DOOR_WIDTH / 2, y: ROOM_PADDING, width: DOOR_WIDTH, height: DOOR_THICKNESS, open: false, side: 'top' },
+                    { x: canvas.width / 2 - DOOR_WIDTH / 2, y: canvas.height - ROOM_PADDING - DOOR_THICKNESS, width: DOOR_WIDTH, height: DOOR_THICKNESS, open: false, side: 'bottom' },
+                    { x: ROOM_PADDING, y: canvas.height / 2 - DOOR_WIDTH / 2, width: DOOR_THICKNESS, height: DOOR_WIDTH, open: false, side: 'left' },
+                    { x: canvas.width - ROOM_PADDING - DOOR_THICKNESS, y: canvas.height / 2 - DOOR_WIDTH / 2, width: DOOR_THICKNESS, height: DOOR_WIDTH, open: false, side: 'right' },
+                ];
+            }
+
+            // --- Update Functions ---
+            let lastTime = 0;
+            function gameLoop(timestamp) {
+                if (gameState === 'start' || gameState === 'game_over' || gameState === 'post_boss' || gameState === 'win') {
+                    return;
+                }
+                
+                const elapsedTime = performance.now() - startTime;
+                updateTimer(elapsedTime);
+
+                if (gameState === 'playing') {
+                    if (lastTime === 0) {
+                        lastTime = timestamp;
+                    }
+                    const deltaTime = (timestamp - lastTime) / 1000 || 0;
+                    lastTime = timestamp;
+
+                    updatePlayer(deltaTime);
+                    updateBullets(deltaTime);
+                    updateEnemies(deltaTime);
+                    updateEnemyBullets(deltaTime);
+                    updateExplosions(deltaTime);
+                    updateMudPuddles(deltaTime);
+                    updateTelegraphs(deltaTime);
+                    updatePlayerShield(deltaTime);
+                    checkCollisions();
+                }
+
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            function updatePlayer(dt) {
+                // Check for invincibility timeout
+                if (player.invincible && Date.now() > player.invincibilityEndTime) {
+                    player.invincible = false;
+                }
+
+                // *** NEW: Handle Regenerative Down item ***
+                if (player.bulletEffects.includes('regen')) {
+                    player.regenTimer += dt;
+                    if (player.regenTimer >= 5) { // 5 seconds
+                        player.regenTimer = 0;
+                        if (player.health < player.maxHealth) {
+                            player.health = Math.min(player.maxHealth, player.health + 1);
+                            updateHUD();
+                        }
+                    }
+                }
+                
+                // *** NEW: Check for mud puddle slow ***
+                player.isSlowed = false;
+                mudPuddles.forEach(puddle => {
+                    if (player.x < puddle.x + puddle.size && player.x + player.width > puddle.x &&
+                        player.y < puddle.y + puddle.size && player.y + player.height > puddle.y) {
+                        player.isSlowed = true;
+                    }
+                });
+                
+                let currentSpeed = player.speed * (player.isSlowed ? 0.5 : 1); // 50% slow
+
+                let dx = 0;
+                let dy = 0;
+                if (keys['w']) dy -= 1;
+                if (keys['s']) dy += 1;
+                if (keys['a']) dx -= 1;
+                if (keys['d']) dx += 1;
+
+                if (dx !== 0 || dy !== 0) {
+                    const mag = Math.sqrt(dx * dx + dy * dy);
+                    dx /= mag;
+                    dy /= mag;
+                
+                    player.x += dx * currentSpeed * dt;
+                    player.y += dy * currentSpeed * dt;
+                }
+                
+                // Wall collision
+                player.x = Math.max(ROOM_PADDING, Math.min(player.x, canvas.width - ROOM_PADDING - player.width));
+                player.y = Math.max(ROOM_PADDING, Math.min(player.y, canvas.height - ROOM_PADDING - player.height));
+
+                // Check for level clear
+                if (enemies.length === 0 && gameState === 'playing') {
+                    doors.forEach(d => d.open = true);
+                    
+                    let enteredDoor = false;
+                    doors.forEach(d => {
+                        if (player.x < d.x + d.width && player.x + player.width > d.x &&
+                            player.y < d.y + d.height && player.y + player.height > d.y) {
+                            enteredDoor = true;
+                        }
+                    });
+
+                    if (enteredDoor) {
+                        if (floor === 10 && !endlessMode) { 
+                            winGame();
+                            return; // return from updatePlayer
+                        }
+                        levelClear();
+                    }
+                }
+            }
+            
+            function updatePlayerShield(dt) {
+                if (player.bulletEffects.includes('shield')) {
+                    if (!playerShield) {
+                        // Create the shield
+                        playerShield = {
+                            angle: 0,
+                            radius: 50,
+                            cooldown: 0,
+                            active: true,
+                            size: 15
+                        };
+                    }
+
+                    if (playerShield.active) {
+                        playerShield.angle += 2 * dt; // Orbit speed
+                        playerShield.x = player.x + player.width / 2 + Math.cos(playerShield.angle) * playerShield.radius;
+                        playerShield.y = player.y + player.height / 2 + Math.sin(playerShield.angle) * playerShield.radius;
+                    } else {
+                        playerShield.cooldown -= dt;
+                        if (playerShield.cooldown <= 0) {
+                            playerShield.active = true;
+                        }
+                    }
+                }
+            }
+
+            function updateBullets(dt) {
+                // Shooting
+                const now = Date.now();
+                if (now - lastShotTime > player.fireRate) {
+                    let shootDir = { x: 0, y: 0 };
+                    if (keys['arrowup']) shootDir.y = -1;
+                    if (keys['arrowdown']) shootDir.y = 1;
+                    if (keys['arrowleft']) shootDir.x = -1;
+                    if (keys['arrowright']) shootDir.x = 1;
+
+                    if (shootDir.x !== 0 || shootDir.y !== 0) {
+                        lastShotTime = now;
+                        const baseAngle = Math.atan2(shootDir.y, shootDir.x);
+                        
+                        createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle);
+
+                        if (player.bulletEffects.includes('hurricane')) {
+                            for(let i = 1; i < 4; i++) {
+                                createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + i * Math.PI / 2);
+                            }
+                        }
+                        
+                        if (player.bulletEffects.includes('tangent')) {
+                            createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + Math.PI / 8);
+                            createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle - Math.PI / 8);
+                        }
+
+                        if (player.bulletEffects.includes('fibonacci') && Math.random() < 0.1) {
+                            for(let i=0; i<8; i++){
+                                createBullet(player.x + PLAYER_SIZE / 2, player.y + PLAYER_SIZE / 2, baseAngle + i * (Math.PI / 4));
+                            }
+                        }
+                    }
+                }
+                
+                // Move bullets
+                bullets.forEach((b, index) => {
+                    b.lifetime += dt;
+
+                    if (player.bulletEffects.includes('sine_wave')) {
+                        const perpAngle = b.angle + Math.PI / 2;
+                        const offsetX = Math.cos(perpAngle) * Math.sin(b.lifetime * 15) * 5;
+                        const offsetY = Math.sin(perpAngle) * Math.sin(b.lifetime * 15) * 5;
+                        b.x += Math.cos(b.angle) * b.speed * dt + offsetX;
+                        b.y += Math.sin(b.angle) * b.speed * dt + offsetY;
+                    } else {
+                        b.x += Math.cos(b.angle) * b.speed * dt;
+                        b.y += Math.sin(b.angle) * b.speed * dt;
+                    }
+
+                    if (player.bulletEffects.includes('log_decay')) {
+                        b.size = Math.max(2, b.initialSize * (1 - Math.log1p(b.lifetime * 2)));
+                    }
+                    if (player.bulletEffects.includes('exponential')) {
+                        b.size = Math.min(40, b.initialSize * Math.exp(b.lifetime * 0.5));
+                    }
+                    if (player.bulletEffects.includes('homing')) {
+                        const closestEnemy = findClosestEnemy(b.x, b.y);
+                        if (closestEnemy) {
+                            const targetAngle = Math.atan2(closestEnemy.y - b.y, closestEnemy.x - b.x);
+                            let angleDiff = targetAngle - b.angle;
+                            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                            b.angle += angleDiff * 2 * dt; // Adjust homing strength
+                        }
+                    }
+
+                    // *** NEW: Quantum Tunneling logic ***
+                    const outOfBounds = b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height;
+                    const atWall = (b.x <= ROOM_PADDING || b.x >= canvas.width - ROOM_PADDING - b.size ||
+                                    b.y <= ROOM_PADDING || b.y >= canvas.height - ROOM_PADDING - b.size);
+
+                    if (outOfBounds || (atWall && !player.bulletEffects.includes('quantum') && !player.bulletEffects.includes('ricochet'))) {
+                        bullets.splice(index, 1);
+                    }
+                });
+            }
+            
+            function updateEnemies(dt) {
+                enemies.forEach((e, eIndex) => {
+                    if(e.frozenUntil && (Date.now() < e.frozenUntil || (player.bulletEffects.includes('absolute_zero') && !e.isBoss))) return;
+                    e.frozenUntil = null;
+                    e.aiTimer -= dt;
+
+                    let currentSpeed = e.speed;
+                    if (e.slowedUntil && Date.now() < e.slowedUntil) {
+                        currentSpeed *= 0.5; // 50% slow
+                    } else {
+                        e.slowedUntil = null;
+                    }
+
+                    // --- Standard Enemy AI ---
+                    if (!e.isBoss) {
+                        switch (e.type) {
+                            case 'melee':
+                                moveTowardsPlayer(e, currentSpeed, dt);
+                                break;
+                            case 'minion':
+                                moveTowardsPlayer(e, currentSpeed, dt);
+                                break;
+                            case 'ranged':
+                                moveTowardsPlayer(e, currentSpeed, dt, 250); // Keep distance
+                                if (e.aiTimer <= 0) {
+                                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                                    enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage, 250));
+                                    e.aiTimer = e.fireRate;
+                                }
+                                break;
+                            case 'charger':
+                                updateCharger(e, currentSpeed, dt);
+                                break;
+                            case 'summoner':
+                                moveTowardsPlayer(e, currentSpeed, dt, -1, true); // Move away
+                                if (e.aiTimer <= 0) {
+                                    enemies.push(createMinionEnemy(e.x, e.y));
+                                    e.aiTimer = e.fireRate;
+                                }
+                                break;
+                            case 'sniper':
+                                updateSniper(e, dt);
+                                break;
+                        }
+                    } 
+                    // --- Boss AI ---
+                    else {
+                        switch (e.id) {
+                            case 'boss_groundskeeper':
+                                updateGroundskeeperBoss(e, currentSpeed, dt);
+                                break;
+                            case 'boss_lazarus':
+                                updateLazarusBoss(e, currentSpeed, dt);
+                                break;
+                            case 'boss_watcher':
+                                updateWatcherBoss(e, currentSpeed, dt);
+                                break;
+                            case 'boss_core':
+                                updateCoreBoss(e, currentSpeed, dt);
+                                break;
+                        }
+                    }
+
+                    // Wall collision
+                    e.x = Math.max(ROOM_PADDING, Math.min(e.x, canvas.width - ROOM_PADDING - e.width));
+                    e.y = Math.max(ROOM_PADDING, Math.min(e.y, canvas.height - ROOM_PADDING - e.height));
+                });
+            }
+            
+            // --- NEW ENEMY AI FUNCTIONS ---
+            
+            function moveTowardsPlayer(e, speed, dt, idealDist = 1, moveAway = false) {
+                const dx = player.x - e.x;
+                const dy = player.y - e.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                let moveDx = 0;
+                let moveDy = 0;
+
+                if (dist > idealDist) {
+                    moveDx = (dx / dist) * (moveAway ? -1 : 1);
+                    moveDy = (dy / dist) * (moveAway ? -1 : 1);
+                }
+                
+                e.x += moveDx * speed * dt;
+                e.y += moveDy * speed * dt;
+            }
+
+            function updateCharger(e, speed, dt) {
+                switch (e.state) {
+                    case 'idle':
+                        moveTowardsPlayer(e, speed, dt);
+                        if (e.aiTimer <= 0) {
+                            e.state = 'telegraphing';
+                            e.aiTimer = 1.0; // 1 sec telegraph
+                            e.targetPos = { x: player.x, y: player.y };
+                        }
+                        break;
+                    case 'telegraphing':
+                        // Stand still, player can see 'aiming' color
+                        if (e.aiTimer <= 0) {
+                            e.state = 'charging';
+                            e.aiTimer = 1.5; // 1.5 sec charge duration
+                        }
+                        break;
+                    case 'charging':
+                        const dx = e.targetPos.x - e.x;
+                        const dy = e.targetPos.y - e.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < 20 || e.aiTimer <= 0) {
+                            e.state = 'idle';
+                            e.aiTimer = e.fireRate; // Cooldown
+                        } else {
+                            e.x += (dx / dist) * e.chargeSpeed * dt;
+                            e.y += (dy / dist) * e.chargeSpeed * dt;
+                        }
+                        break;
+                }
+            }
+            
+            function updateSniper(e, dt) {
+                switch(e.state) {
+                    case 'idle':
+                        // Stay still
+                        if (e.aiTimer <= 0) {
+                            e.state = 'aiming';
+                            e.aiTimer = 1.5; // 1.5 sec aim time
+                            e.targetPos = { x: player.x + player.width / 2, y: player.y + player.height / 2 };
+                            // Create telegraph
+                            telegraphs.push({
+                                x1: e.x + e.width / 2, y1: e.y + e.height / 2,
+                                x2: e.targetPos.x, y2: e.targetPos.y,
+                                lifetime: 1.5, color: 'rgba(255, 0, 0, 0.5)', lineDash: [10, 5]
+                            });
+                        }
+                        break;
+                    case 'aiming':
+                        // Stand still
+                        if (e.aiTimer <= 0) {
+                            e.state = 'idle';
+                            e.aiTimer = e.fireRate; // Cooldown
+                            const angle = Math.atan2(e.targetPos.y - (e.y + e.height / 2), e.targetPos.x - (e.x + e.width / 2));
+                            enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage, 800)); // Fast bullet
+                        }
+                        break;
+                }
+            }
+
+            // --- NEW BOSS AI FUNCTIONS ---
+            
+            function updateGroundskeeperBoss(e, speed, dt) {
+                if (e.aiTimer <= 0) {
+                    // Pick new attack
+                    if (e.state === 'idle') {
+                        const rand = Math.random();
+                        if (rand < 0.6) { // 60% chance to charge
+                            e.state = 'telegraph_charge';
+                            e.aiTimer = 1.2; // Telegraph time
+                            e.targetPos = { x: player.x, y: player.y };
+                        } else { // 40% chance to stomp
+                            e.state = 'telegraph_stomp';
+                            e.aiTimer = 0.8;
+                        }
+                    }
+                }
+
+                switch (e.state) {
+                    case 'idle':
+                        moveTowardsPlayer(e, speed, dt);
+                        break;
+                    case 'telegraph_charge':
+                        // Stand still
+                        if (e.aiTimer <= 0) {
+                            e.state = 'charging';
+                            e.aiTimer = 2.0; // Charge duration
+                        }
+                        break;
+                    case 'charging':
+                        const dx = e.targetPos.x - e.x;
+                        const dy = e.targetPos.y - e.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < 20 || e.aiTimer <= 0) {
+                            e.state = 'idle';
+                            e.aiTimer = e.fireRate; // Cooldown
+                        } else {
+                            e.x += (dx / dist) * e.chargeSpeed * dt;
+                            e.y += (dy / dist) * e.chargeSpeed * dt;
+                            // Create mud puddles
+                            if (Math.random() < 0.2) {
+                                mudPuddles.push({ x: e.x, y: e.y, size: 40, lifetime: 10 });
+                            }
+                        }
+                        break;
+                    case 'telegraph_stomp':
+                        if (e.aiTimer <= 0) {
+                            e.state = 'idle';
+                            e.aiTimer = e.fireRate;
+                            // Stomp: create ring of 12 bullets
+                            for (let i = 0; i < 12; i++) {
+                                const angle = (i / 12) * Math.PI * 2;
+                                enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage * 0.7, 200));
+                            }
+                        }
+                        break;
+                }
+            }
+
+            function updateLazarusBoss(e, speed, dt) {
+                // Phase change
+                if (e.health < e.maxHealth / 2 && e.phase === 1) {
+                    e.phase = 2;
+                    e.state = 'teleporting';
+                    e.aiTimer = 0.1; // Force teleport
+                }
+
+                if (e.aiTimer <= 0) {
+                    // Pick new attack
+                    if (e.state === 'idle') {
+                        const rand = Math.random();
+                        if (e.phase === 1) {
+                            if (rand < 0.33) e.state = 'teleporting';
+                            else if (rand < 0.66) e.state = 'summoning';
+                            else e.state = 'barraging';
+                        } else { // Phase 2
+                            if (rand < 0.3) e.state = 'teleporting';
+                            else if (rand < 0.6) e.state = 'barraging';
+                            else e.state = 'telegraph_beam'; // New attack
+                        }
+                    }
+                }
+
+                switch (e.state) {
+                    case 'idle':
+                        moveTowardsPlayer(e, speed, dt);
+                        break;
+                    case 'teleporting':
+                        e.x = ROOM_PADDING + 50 + Math.random() * (canvas.width - ROOM_PADDING * 2 - 100);
+                        e.y = ROOM_PADDING + 50 + Math.random() * (canvas.height - ROOM_PADDING * 2 - 100);
+                        e.state = 'idle';
+                        e.aiTimer = e.fireRate;
+                        break;
+                    case 'summoning':
+                        enemies.push(createEnemy(e.x + 50, e.y));
+                        enemies.push(createRangedEnemy(e.x - 50, e.y));
+                        e.state = 'idle';
+                        e.aiTimer = e.fireRate;
+                        break;
+                    case 'barraging':
+                        // Fire a 5-shot spread
+                        const baseAngle = Math.atan2(player.y - e.y, player.x - e.x);
+                        for (let i = -2; i <= 2; i++) {
+                            const angle = baseAngle + i * (Math.PI / 16);
+                            enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage, 300));
+                        }
+                        e.state = 'idle';
+                        e.aiTimer = e.fireRate;
+                        break;
+                    case 'telegraph_beam':
+                        e.state = 'firing_beam';
+                        e.aiTimer = 2.0; // Beam duration
+                        e.targetPos = { x: player.x + player.width / 2, y: player.y + player.height / 2 };
+                        telegraphs.push({
+                            x1: e.x + e.width / 2, y1: e.y + e.height / 2,
+                            x2: e.targetPos.x, y2: e.targetPos.y,
+                            lifetime: 0.8, color: 'rgba(255, 0, 255, 0.4)', lineDash: [], width: 10
+                        });
+                        telegraphs.push({
+                            x1: e.x + e.width / 2, y1: e.y + e.height / 2,
+                            x2: e.targetPos.x, y2: e.targetPos.y,
+                            lifetime: 2.0, delay: 0.8, color: 'rgba(255, 50, 255, 0.9)', lineDash: [], width: 50,
+                            isBeam: true, damage: e.damage * 1.5
+                        });
+                        break;
+                    case 'firing_beam':
+                        // Logic is handled by the telegraph object
+                        if (e.aiTimer <= 0) {
+                            e.state = 'idle';
+                            e.aiTimer = e.fireRate;
+                        }
+                        break;
+                }
+            }
+
+            function updateWatcherBoss(e, speed, dt) {
+                if (e.aiTimer <= 0 && e.state === 'idle') {
+                    const rand = Math.random();
+                    if (rand < 0.4) e.state = 'teleporting';
+                    else if (rand < 0.7) e.state = 'snipe_shot';
+                    else e.state = 'summoning';
+                }
+
+                switch (e.state) {
+                    case 'idle':
+                        // stand still
+                        break;
+                    case 'teleporting':
+                        e.x = ROOM_PADDING + 50 + Math.random() * (canvas.width - ROOM_PADDING * 2 - 100);
+                        e.y = ROOM_PADDING + 50 + Math.random() * (canvas.height - ROOM_PADDING * 2 - 100);
+                        e.state = 'idle';
+                        e.aiTimer = e.fireRate;
+                        break;
+                    case 'summoning':
+                        enemies.push(createSniperEnemy(e.x + 50, e.y));
+                        e.state = 'idle';
+                        e.aiTimer = e.fireRate;
+                        break;
+                    case 'snipe_shot':
+                        // Fire 3 shots
+                        for (let i = 0; i < 3; i++) {
+                            const target = { x: player.x + player.width / 2, y: player.y + player.height / 2 };
+                            const angle = Math.atan2(target.y - (e.y + e.height / 2), target.x - (e.x + e.width / 2));
+                            const delay = i * 0.3;
+                            telegraphs.push({
+                                x1: e.x + e.width / 2, y1: e.y + e.height / 2,
+                                x2: target.x, y2: target.y,
+                                lifetime: 1.0 + delay, delay: 0, color: 'rgba(255, 0, 0, 0.5)', lineDash: [10, 5],
+                                onEnd: () => {
+                                    enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage, 900));
+                                }
+                            });
+                        }
+                        e.state = 'idle';
+                        e.aiTimer = e.fireRate + 1.0;
+                        break;
+                }
+            }
+            
+            function updateCoreBoss(e, speed, dt) {
+                // This boss is stationary
+                e.spiralAngle += (Math.PI / 2) * dt; // Rotate 90 deg/sec
+                
+                // Spiral attack (constant)
+                if (e.aiTimer <= 0) {
+                    e.aiTimer = e.fireRate; // 0.2s
+                    for(let i=0; i<4; i++) {
+                        const angle = e.spiralAngle + (i * Math.PI / 2);
+                        enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage, 150));
+                    }
+                }
+                
+                // Burst attack
+                e.burstTimer -= dt;
+                if(e.burstTimer <= 0) {
+                    e.burstTimer = 3.0; // Every 3 sec
+                    for(let i=0; i<12; i++) {
+                        const angle = (i / 12) * Math.PI * 2;
+                        enemyBullets.push(createEnemyBullet(e.x + e.width / 2, e.y + e.height / 2, angle, e.damage, 300));
+                    }
+                }
+                
+                // Laser sweep attack
+                e.laserAngle += (Math.PI / 4) * dt; // 45 deg/sec
+                telegraphs.push({
+                    x1: e.x + e.width / 2, y1: e.y + e.height / 2,
+                    angle: e.laserAngle, length: 1000,
+                    lifetime: 0.05, color: 'rgba(255, 100, 100, 0.8)', width: 10,
+                    isBeam: true, damage: e.damage * 2
+                });
+            }
+
+
+            function updateEnemyBullets(dt) {
+                enemyBullets.forEach((b, index) => {
+                    b.x += Math.cos(b.angle) * b.speed * dt;
+                    b.y += Math.sin(b.angle) * b.speed * dt;
+
+                    // Remove bullets that go off-screen
+                    if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                        enemyBullets.splice(index, 1);
+                    }
+                });
+            }
+            
+            function updateExplosions(dt) {
+                explosions.forEach((exp, index) => {
+                    exp.lifetime -= dt;
+                    if (exp.lifetime <= 0) {
+                        explosions.splice(index, 1);
+                    }
+                });
+            }
+            
+            function updateMudPuddles(dt) {
+                mudPuddles.forEach((puddle, index) => {
+                    puddle.lifetime -= dt;
+                    if (puddle.lifetime <= 0) {
+                        mudPuddles.splice(index, 1);
+                    }
+                });
+            }
+            
+            function updateTelegraphs(dt) {
+                telegraphs.forEach((t, index) => {
+                    if (t.delay > 0) {
+                        t.delay -= dt;
+                        return;
+                    }
+                    
+                    t.lifetime -= dt;
+                    if (t.lifetime <= 0) {
+                        if (t.onEnd) t.onEnd();
+                        telegraphs.splice(index, 1);
+                    }
+                    
+                    // *** NEW: Beam collision ***
+                    if (t.isBeam && !player.invincible) {
+                        // Check for collision with player
+                        let playerCenter = { x: player.x + player.width / 2, y: player.y + player.height / 2 };
+                        let hit = false;
+                        if(t.angle) { // Rotating beam (from Core)
+                            const dx = playerCenter.x - t.x1;
+                            const dy = playerCenter.y - t.y1;
+                            const dist = Math.hypot(dx, dy);
+                            const angleToPlayer = Math.atan2(dy, dx);
+                            let angleDiff = Math.abs(angleToPlayer - t.angle);
+                            while(angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+                            
+                            if (angleDiff < 0.1 && dist < t.length) hit = true; // 0.1 radian tolerance
+                            
+                        } else { // Static beam (from Lazarus)
+                            hit = lineIntersectsRect(t, player);
+                        }
+                        
+                        if(hit) {
+                            takeDamage(t.damage);
+                        }
+                    }
+                });
+            }
+
+            function takeDamage(damageAmount) {
+                if (player.invincible) return;
+                
+                player.health -= damageAmount;
+                player.invincible = true;
+                player.invincibilityEndTime = Date.now() + 1000; // 1 second of invincibility
+                updateHUD();
+                if (player.health <= 0) {
+                    gameOver();
+                }
+            }
+            
+            function checkCollisions() {
+                // Bullets with enemies
+                bullets.forEach((bullet, bIndex) => {
+                    enemies.forEach((enemy, eIndex) => {
+                        if (collides(bullet, enemy)) {
+                            
+                            let isCrit = Math.random() < player.critChance;
+                            let damageDealt = player.damage * (isCrit ? player.critDamage : 1);
+                            enemy.health -= damageDealt;
+
+                            // Handle bullet effects on hit
+                            if (player.bulletEffects.includes('blizzard') && Math.random() < 0.25) {
+                                enemy.frozenUntil = Date.now() + 2000;
+                            }
+                            if (player.bulletEffects.includes('thunderstorm') && Math.random() < 0.3) {
+                                chainLightning(enemy, 2);
+                            }
+                            if (player.bulletEffects.includes('gravity_well')) {
+                                enemy.slowedUntil = Date.now() + 3000; // Slow for 3 seconds
+                            }
+                            if (player.bulletEffects.includes('unstable_ordinance') && Math.random() < 0.2) { // 20% chance to explode
+                                createExplosion(bullet.x, bullet.y, 80, player.damage * 0.5); // 80px radius, 50% damage
+                            }
+
+                            if (!player.bulletEffects.includes('piercing') || bullet.pierced) {
+                                bullets.splice(bIndex, 1);
+                            } else {
+                                bullet.pierced = true;
+                            }
+
+                            if (enemy.health <= 0) {
+                                if(enemy.isBoss && floor === 10 && !endlessMode) {
+                                    // Don't remove boss, let winGame handle it
+                                } else {
+                                    enemies.splice(eIndex, 1);
+                                }
+                            }
+                        }
+                    });
+                });
+
+                // Bullets with walls
+                bullets.forEach(bullet => {
+                    if (player.bulletEffects.includes('ricochet') && !bullet.bounced) {
+                        if (bullet.x <= ROOM_PADDING || bullet.x >= canvas.width - ROOM_PADDING - bullet.size) {
+                            bullet.angle = Math.PI - bullet.angle;
+                            bullet.bounced = true;
+                        }
+                        if (bullet.y <= ROOM_PADDING || bullet.y >= canvas.height - ROOM_PADDING - bullet.size) {
+                            bullet.angle = -bullet.angle;
+                            bullet.bounced = true;
+                        }
+                    }
+                });
+
+                // Player with enemies
+                if (!player.invincible) {
+                    enemies.forEach(enemy => {
+                        if (collides(player, enemy)) {
+                            takeDamage(enemy.damage);
+                        }
+                    });
+                }
+                
+                // Enemy bullets with Player
+                enemyBullets.forEach((bullet, bIndex) => {
+                    if (collides(player, bullet)) {
+                        takeDamage(bullet.damage);
+                        enemyBullets.splice(bIndex, 1);
+                    } 
+                    // *** NEW: Check collision with Shield ***
+                    else if (playerShield && playerShield.active && collides(playerShield, bullet)) {
+                        playerShield.active = false;
+                        playerShield.cooldown = 15.0; // 15 sec cooldown
+                        enemyBullets.splice(bIndex, 1);
+                    }
+                });
+            }
+            
+            function chainLightning(target, chainsLeft) {
+                if (chainsLeft <= 0) return;
+                const nextTarget = findClosestEnemy(target.x, target.y, target);
+                if (nextTarget) {
+                    // TODO: Draw a line here for visual effect
+                    telegraphs.push({
+                        x1: target.x, y1: target.y, x2: nextTarget.x, y2: nextTarget.y,
+                        lifetime: 0.1, color: 'cyan', width: 2
+                    });
+                    nextTarget.health -= player.damage * 0.75; // Chain lightning does less damage
+                    if (nextTarget.health <= 0) {
+                        enemies.splice(enemies.indexOf(nextTarget), 1);
+                    }
+                    chainLightning(nextTarget, chainsLeft - 1);
+                }
+            }
+            
+            // --- Drawing Functions ---
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                drawRoom();
+                mudPuddles.forEach(drawMudPuddle);
+                
+                drawPlayer();
+                if(playerShield) drawPlayerShield();
+                
+                enemies.forEach(drawEnemy);
+                bullets.forEach(drawBullet);
+                enemyBullets.forEach(drawEnemyBullet);
+                explosions.forEach(drawExplosion);
+                
+                telegraphs.forEach(drawTelegraph);
+            }
+
+            function drawPlayer() {
+                // Flash if invincible by skipping draw calls periodically
+                if (player.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
+                    return;
+                }
+                
+                ctx.fillStyle = player.isSlowed ? '#FFB266' : '#FFD700'; // Orange if slowed
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+                ctx.fillStyle = '#FFA500'; // Orange
+
+                let lastDirX = keys['d'] ? 1 : (keys['a'] ? -1 : 0);
+                let lastDirY = keys['s'] ? 1 : (keys['w'] ? -1 : 0);
+                if (keys['arrowright']) lastDirX = 1;
+                if (keys['arrowleft']) lastDirX = -1;
+                if (keys['arrowdown']) lastDirY = 1;
+                if (keys['arrowup']) lastDirY = -1;
+                
+                if(lastDirX === 0 && lastDirY === 0) lastDirX = 1; // Default facing right
+
+                if (lastDirX !== 0) {
+                    ctx.fillRect(player.x + (lastDirX > 0 ? player.width : -10), player.y + player.height / 4, 10, player.height / 2);
+                } else if (lastDirY !== 0) {
+                    ctx.fillRect(player.x + player.width / 4, player.y + (lastDirY > 0 ? player.height : -10), player.width / 2, 10);
+                }
+            }
+            
+            function drawPlayerShield() {
+                if (!playerShield) return;
+                
+                ctx.fillStyle = playerShield.active ? 'rgba(0, 191, 255, 0.7)' : 'rgba(70, 80, 90, 0.5)';
+                ctx.beginPath();
+                ctx.arc(playerShield.x, playerShield.y, playerShield.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            function drawEnemy(enemy) {
+                // Get color based on state
+                let color = enemy.color;
+                if (enemy.frozenUntil) color = '#ADD8E6';
+                else if (enemy.state === 'telegraphing' || enemy.state === 'aiming' || enemy.state === 'telegraph_charge' || enemy.state === 'telegraph_stomp') color = '#FFFF00'; // Yellow telegraph
+                else if (enemy.state === 'charging') color = '#FF0000'; // Red charge
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                
+                // Health bar
+                if(enemy.health < enemy.maxHealth) {
+                    ctx.fillStyle = '#dc2626'; // red-600
+                    ctx.fillRect(enemy.x, enemy.y - 10, enemy.width, 5);
+                    ctx.fillStyle = '#4ade80'; // green-400
+                    ctx.fillRect(enemy.x, enemy.y - 10, enemy.width * (enemy.health / enemy.maxHealth), 5);
+                }
+            }
+
+            function drawBullet(bullet) {
+                ctx.fillStyle = '#00BFFF'; // DeepSkyBlue
+                ctx.beginPath();
+                ctx.arc(bullet.x + bullet.size / 2, bullet.y + bullet.size / 2, bullet.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            function drawEnemyBullet(bullet) {
+                ctx.fillStyle = '#f56565'; // red-500
+                ctx.beginPath();
+                ctx.arc(bullet.x + bullet.size / 2, bullet.y + bullet.size / 2, bullet.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            function drawRoom() {
+                // Walls
+                ctx.strokeStyle = '#4a5568'; // gray-700
+                ctx.lineWidth = DOOR_THICKNESS;
+                ctx.strokeRect(ROOM_PADDING, ROOM_PADDING, canvas.width - ROOM_PADDING * 2, canvas.height - ROOM_PADDING * 2);
+
+                // Doors
+                doors.forEach(d => {
+                    ctx.fillStyle = d.open ? '#2d3748' : '#718096';
+                    if (d.open && enemies.length === 0) {
+                        ctx.fillStyle = '#2d3748';
+                        ctx.shadowColor = 'cyan';
+                        ctx.shadowBlur = 15;
+                    }
+                    
+                    ctx.fillRect(d.x, d.y, d.width, d.height);
+                    ctx.shadowBlur = 0; // Reset shadow
+                });
+            }
+            
+            function drawExplosion(exp) {
+                const progress = exp.lifetime / 0.3;
+                ctx.fillStyle = `rgba(255, 165, 0, ${progress * 0.8})`; // Orange, fades out
+                ctx.beginPath();
+                const currentRadius = exp.maxRadius * (1 - progress);
+                ctx.arc(exp.x, exp.y, currentRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            function drawMudPuddle(puddle) {
+                ctx.fillStyle = `rgba(139, 69, 19, ${puddle.lifetime / 10})`; // Brown, fades out
+                ctx.beginPath();
+                ctx.arc(puddle.x + puddle.size / 2, puddle.y + puddle.size / 2, puddle.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            function drawTelegraph(t) {
+                if (t.delay > 0) return;
+                
+                ctx.strokeStyle = t.color;
+                ctx.lineWidth = t.width || 1;
+                ctx.setLineDash(t.lineDash || []);
+                
+                ctx.beginPath();
+                if (t.angle) { // Rotating beam
+                    ctx.moveTo(t.x1, t.y1);
+                    ctx.lineTo(t.x1 + Math.cos(t.angle) * t.length, t.y1 + Math.sin(t.angle) * t.length);
+                } else { // Static line
+                    ctx.moveTo(t.x1, t.y1);
+                    ctx.lineTo(t.x2, t.y2);
+                }
+                ctx.stroke();
+                
+                ctx.setLineDash([]); // Reset line dash
+            }
+            
+            function updateHUD() {
+                hud.health.textContent = `${Math.ceil(player.health)} / ${player.maxHealth}`;
+                hud.floor.textContent = floor;
+                hud.inventory.textContent = player.inventory.join(', ');
+            }
+            
+            function updateTimer(elapsedTime) {
+                hud.timer.textContent = formatTime(elapsedTime);
+            }
+
+            // --- Game State Management ---
+            function startGame() {
+                startScreen.classList.add('hidden');
+                gameState = 'playing';
+                startTime = performance.now();
+                init();
+                requestAnimationFrame(gameLoop);
+            }
+            
+            function levelClear() {
+                gameState = 'item_selection';
+                lastTime = 0; // Reset delta time calculation
+                showItemSelection();
+            }
+
+            function gameOver() {
+                gameState = 'game_over';
+                finalTime = performance.now() - startTime;
+                document.getElementById('final-time-game-over').textContent = formatTime(finalTime);
+                gameOverScreen.classList.remove('hidden');
+            }
+
+            function winGame() {
+                gameState = 'post_boss';
+                finalTime = performance.now() - startTime;
+                document.getElementById('final-time-post-boss').textContent = formatTime(finalTime);
+                document.getElementById('final-time-win').textContent = formatTime(finalTime);
+                postBossScreen.classList.remove('hidden');
+            }
+
+            function showItemSelection() {
+                const itemChoicesContainer = document.getElementById('item-choices');
+                itemChoicesContainer.innerHTML = '';
+                
+                let itemPool = endlessMode ? [...ITEMS, ...ENDLESS_ITEMS] : ITEMS;
+                const availableItems = itemPool.filter(item => !player.inventory.includes(item.name));
+                const choices = [];
+
+                for (let i = 0; i < 3; i++) {
+                    if (availableItems.length === 0) break;
+                    const randomIndex = Math.floor(Math.random() * availableItems.length);
+                    choices.push(availableItems[randomIndex]);
+                    availableItems.splice(randomIndex, 1);
+                }
+
+                choices.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'item-card';
+                    card.innerHTML = `<h3 class="text-lg font-bold mb-2">${item.name}</h3><p class="text-sm">${item.description}</p>`;
+                    card.onclick = () => {
+                        itemSelectionScreen.classList.add('hidden');
+                        selectItem(item);
+                    };
+                    itemChoicesContainer.appendChild(card);
+                });
+
+                itemSelectionScreen.classList.remove('hidden');
+            }
+
+            function selectItem(item) {
+                item.effect(player);
+                if (!player.inventory.includes(item.name)) {
+                    player.inventory.push(item.name);
+                }
+                nextLevel();
+            }
+
+            // --- Helper Functions ---
+            
+            // Basic rect collision check
+            function collides(rect1, rect2) {
+                const size1 = rect1.size || rect1.width;
+                const size2 = rect2.size || rect2.width;
+                const height1 = rect1.size || rect1.height;
+                const height2 = rect2.size || rect2.height;
+                
+                return rect1.x < rect2.x + size2 &&
+                       rect1.x + size1 > rect2.x &&
+                       rect1.y < rect2.y + height2 &&
+                       rect1.y + height1 > rect2.y;
+            }
+            
+            // Check if a line segment (beam) intersects a rect (player)
+            function lineIntersectsRect(line, rect) {
+                // This is a simplified check. A full one is complex.
+                // This will check if the player's center is close to the line.
+                const px = player.x + player.width / 2;
+                const py = player.y + player.height / 2;
+                const x1 = line.x1, y1 = line.y1, x2 = line.x2, y2 = line.y2;
+
+                const dist = Math.abs((y2 - y1) * px - (x2 - x1) * py + x2 * y1 - y2 * x1) / Math.hypot(y2 - y1, x2 - x1);
+                
+                // Check if player is within the "width" of the beam
+                if (dist < (line.width / 2) + (player.width / 2)) {
+                    // Check if player is within the "length" of the beam
+                    const dot = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / Math.pow(Math.hypot(x2 - x1, y2 - y1), 2);
+                    return dot >= 0 && dot <= 1;
+                }
+                return false;
+            }
+
+
+            function getBaseStats(scaling = 1) {
+                const floorScale = 1 + (floor / 10) + (endlessMode ? floor / 5 : 0);
+                return {
+                    health: (20 + floor * 5) * floorScale * scaling,
+                    damage: (5 + floor * 1.5) * floorScale * scaling,
+                    speed: (50 + Math.random() * 50 + floor * 4) * scaling
+                };
+            }
+
+            function createEnemy(x, y) {
+                const stats = getBaseStats();
+                return {
+                    x, y,
+                    width: ENEMY_SIZE,
+                    height: ENEMY_SIZE,
+                    speed: stats.speed,
+                    health: stats.health,
+                    maxHealth: stats.health,
+                    damage: stats.damage,
+                    color: '#f56565', // red-500
+                    type: 'melee',
+                    aiTimer: Math.random() // Stagger AI
+                };
+            }
+            
+            function createRangedEnemy(x, y) {
+                const enemy = createEnemy(x,y);
+                const stats = getBaseStats(0.8); // Ranged are slightly weaker
+                enemy.color = '#ed8936'; // orange-500
+                enemy.type = 'ranged';
+                enemy.speed = stats.speed * 0.7; // Ranged enemies are a bit slower
+                enemy.health = stats.health;
+                enemy.maxHealth = stats.health;
+                enemy.fireRate = Math.max(1.5, 3.0 - (floor * 0.05)); // seconds
+                enemy.aiTimer = Math.random() * enemy.fireRate;
+                return enemy;
+            }
+            
+            // --- NEW ENEMY CREATORS ---
+            function createMinionEnemy(x, y) {
+                const enemy = createEnemy(x, y);
+                const stats = getBaseStats(0.25); // Minions are very weak
+                enemy.health = stats.health;
+                enemy.maxHealth = stats.health;
+                enemy.damage = stats.damage;
+                enemy.color = '#FBBF24'; // amber-400
+                enemy.type = 'minion';
+                enemy.width = ENEMY_SIZE * 0.75;
+                enemy.height = ENEMY_SIZE * 0.75;
+                return enemy;
+            }
+            
+            function createChargerEnemy(x, y) {
+                const enemy = createEnemy(x, y);
+                const stats = getBaseStats(1.2);
+                enemy.color = '#7C3AED'; // purple-600
+                enemy.type = 'charger';
+                enemy.health = stats.health;
+                enemy.maxHealth = stats.health;
+                enemy.fireRate = Math.max(2.0, 4.0 - (floor * 0.1)); // Charge cooldown
+                enemy.aiTimer = Math.random() * enemy.fireRate;
+                enemy.state = 'idle';
+                enemy.chargeSpeed = stats.speed * 4;
+                enemy.targetPos = {};
+                return enemy;
+            }
+            
+            function createSummonerEnemy(x, y) {
+                const enemy = createEnemy(x, y);
+                const stats = getBaseStats(0.7);
+                enemy.color = '#10B981'; // green-500
+                enemy.type = 'summoner';
+                enemy.health = stats.health;
+                enemy.maxHealth = stats.health;
+                enemy.damage *= 0.5; // Weak melee
+                enemy.fireRate = Math.max(3.0, 6.0 - (floor * 0.1)); // Summon cooldown
+                enemy.aiTimer = Math.random() * enemy.fireRate;
+                return enemy;
+            }
+            
+            function createSniperEnemy(x, y) {
+                const enemy = createEnemy(x, y);
+                const stats = getBaseStats(0.5);
+                enemy.color = '#DB2777'; // pink-600
+                enemy.type = 'sniper';
+                enemy.health = stats.health;
+                enemy.maxHealth = stats.health;
+                enemy.damage = stats.damage * 3; // High damage
+                enemy.speed = 0; // Stays still
+                enemy.fireRate = Math.max(2.5, 4.5 - (floor * 0.05)); // Snipe cooldown
+                enemy.aiTimer = Math.random() * enemy.fireRate;
+                enemy.state = 'idle';
+                enemy.targetPos = {};
+                return enemy;
+            }
+            
+            // --- NEW BOSS CREATORS ---
+            
+            function createGroundskeeperBoss() {
+                const stats = getBaseStats(10); // Floor 5 boss
+                return {
+                    x: canvas.width / 2 - 50, y: ROOM_PADDING + 20,
+                    width: 100, height: 100,
+                    speed: stats.speed * 0.8,
+                    chargeSpeed: stats.speed * 3,
+                    health: stats.health,
+                    maxHealth: stats.health,
+                    damage: stats.damage,
+                    color: '#854D0E', // brown-700
+                    isBoss: true,
+                    id: 'boss_groundskeeper',
+                    state: 'idle',
+                    fireRate: 3.0,
+                    aiTimer: 2.0
+                };
+            }
+            
+            function createLazarusBoss() {
+                const stats = getBaseStats(25); // Floor 10 boss
+                return {
+                    x: canvas.width / 2 - 40, y: ROOM_PADDING + 20,
+                    width: 80, height: 80,
+                    speed: stats.speed,
+                    health: stats.health,
+                    maxHealth: stats.health,
+                    damage: stats.damage,
+                    color: '#9f7aea', // purple-600 (original final boss color)
+                    isBoss: true,
+                    id: 'boss_lazarus',
+                    state: 'idle',
+                    fireRate: 2.5,
+                    aiTimer: 1.0,
+                    phase: 1
+                };
+            }
+            
+            function createWatcherBoss() {
+                const stats = getBaseStats(40); // Floor 15 boss
+                return {
+                    x: canvas.width / 2 - 30, y: ROOM_PADDING + 20,
+                    width: 60, height: 60,
+                    speed: 0, // Stationary
+                    health: stats.health,
+                    maxHealth: stats.health,
+                    damage: stats.damage * 1.5, // High damage
+                    color: '#E11D48', // rose-600
+                    isBoss: true,
+                    id: 'boss_watcher',
+                    state: 'idle',
+                    fireRate: 3.5,
+                    aiTimer: 3.0
+                };
+            }
+            
+            function createCoreBoss() {
+                const stats = getBaseStats(60); // Floor 20 boss
+                return {
+                    x: canvas.width / 2 - 60, y: canvas.height / 2 - 60, // Center
+                    width: 120, height: 120,
+                    speed: 0, // Stationary
+                    health: stats.health,
+                    maxHealth: stats.health,
+                    damage: stats.damage * 0.8, // Lots of small hits
+                    color: '#F59E0B', // amber-500
+                    isBoss: true,
+                    id: 'boss_core',
+                    fireRate: 0.2, // Spiral fire rate
+                    aiTimer: 0,
+                    burstTimer: 3.0,
+                    spiralAngle: 0,
+                    laserAngle: 0
+                };
+            }
+
+            function createBullet(x, y, angle) {
+                const bullet = {
+                    x: x - BULLET_SIZE / 2,
+                    y: y - BULLET_SIZE / 2,
+                    size: BULLET_SIZE,
+                    initialSize: BULLET_SIZE,
+                    speed: 500,
+                    angle: angle,
+                    lifetime: 0
+                };
+                bullets.push(bullet);
+            }
+
+            function createExplosion(x, y, radius, damage) {
+                // Add to explosions array for drawing
+                explosions.push({x, y, maxRadius: radius, lifetime: 0.3});
+
+                // Damage enemies in radius
+                enemies.forEach(enemy => {
+                    const dist = Math.hypot((enemy.x + enemy.width / 2) - x, (enemy.y + enemy.height / 2) - y);
+                    if (dist < radius + enemy.width / 2) {
+                        enemy.health -= damage;
+                    }
+                });
+            }
+
+            function createEnemyBullet(x, y, angle, damage, speed = 250) {
+                return {
+                    x: x - 6, y: y - 6,
+                    size: 12,
+                    speed: speed,
+                    angle: angle,
+                    damage: damage
+                };
+            }
+
+            function findClosestEnemy(x, y, exclude = null) {
+                let closest = null;
+                let closestDist = Infinity;
+                enemies.forEach(e => {
+                    if (e === exclude) return;
+                    const dist = Math.hypot(e.x - x, e.y - y);
+                    if (dist < closestDist) {
+                        closest = e;
+                        closestDist = dist;
+                    }
+                });
+                return closest;
+            }
+
+            function formatTime(ms) {
+                const minutes = Math.floor(ms / 60000);
+                const seconds = Math.floor((ms % 60000) / 1000);
+                const milliseconds = Math.floor(ms % 1000);
+
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+            }
+
+            // --- Event Listeners ---
+            window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+            window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+            startButton.addEventListener('click', startGame);
+
+            restartButton.addEventListener('click', () => {
+                gameOverScreen.classList.add('hidden');
+                startGame();
+            });
+
+            playAgainButton.addEventListener('click', () => {
+                winScreen.classList.add('hidden');
+                startGame();
+            });
+
+            finishGameButton.addEventListener('click', () => {
+                postBossScreen.classList.add('hidden');
+                winScreen.classList.remove('hidden');
+            });
+
+            continueGameButton.addEventListener('click', () => {
+                postBossScreen.classList.add('hidden');
+                endlessMode = true;
+                nextLevel();
+                lastTime = 0;
+                requestAnimationFrame(gameLoop);
+            });
+        });
+    </script>
+</body>
+</html>
