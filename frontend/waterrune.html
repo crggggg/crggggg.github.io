@@ -199,6 +199,7 @@
         const gameState = {
             currentScene: 'library', dialogueIndex: 0, inDialogue: false, inBattle: false, interactionTarget: null, gameOver: false,
             enemy: null, battleState: 'PLAYER_CHOICE', battleMenuIndex: 0, actMenuIndex: 0, enemyPacified: false, secretBossDefeated: false,
+            coolerBossDefeated: false,
         };
         const keys = {};
         let projectiles = [];
@@ -256,6 +257,30 @@
                 },
                 attackPatterns: ['squirt', 'cap_throw', 'spill']
             },
+            water_cooler: {
+                name: 'Water Cooler', hp: 160, maxHp: 160, attackPower: 12, color: '#ADD8E6', size: canvas.width * 0.1, isCircle: false,
+                 state: 'idle', pacifyState: 'peaceful',
+                acts: ['Check', 'Listen', 'Pat', 'Encourage'],
+                actLogic: (act, state) => {
+                    switch(state) {
+                        case 'idle':
+                            if (act === 'Listen') return { newState: 'bubbling', response: 'You hear the faint gurgle of bubbles within.' };
+                            if (act === 'Pat') return { newState: 'annoyed', response: 'It rumbles ominously. Its attack rose!' };
+                            break;
+                        case 'bubbling':
+                             if (act === 'Encourage') return { newState: 'proud', response: 'It stands a little taller, seemingly proud of its water.' };
+                             break;
+                        case 'proud':
+                            if (act === 'Listen') return { newState: 'peaceful', response: 'You listen again, appreciating its calm inner workings.' };
+                            break;
+                        case 'annoyed':
+                            if (act === 'Encourage') return { newState: 'idle', response: 'Your kind words calm it down.' };
+                            break;
+                    }
+                    return { newState: state, response: 'It doesn\'t seem to care.' };
+                },
+                attackPatterns: ['stream', 'geyser', 'bubble_burst']
+            },
              silhouette_boss: { // Kept the old system for the boss as it's a secret one-off
                 name: '???', hp: 300, maxHp: 300, attackPower: 15, color: '#111', size: canvas.width * 0.06, isCircle: false,
                 pacifyValue: 0, usedActs: new Set(),
@@ -267,10 +292,31 @@
         
         // --- SCENES & DIALOGUE ---
         const scenes = {
-            library: { package: { x: canvas.width / 2, y: canvas.height / 2, size: canvas.width * 0.08, color: '#FF00FF', interacted: false }, door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }, dialogue: ["I was sitting in the library at school like normal...", "Then I saw a giant package in the middle of the room. It seems to be vibrating.", "I should go look at it."] },
-            outside: { roamingEnemies: [], environmentalHazards: [], trapdoor: { x: canvas.width / 2, y: canvas.height / 2, size: canvas.width * 0.08, color: '#3B2F2F', active: true } },
+            library: { 
+                interactables: {
+                    bookshelf: { x: 50, y: 100, width: 40, height: 150, color: '#654321', dialogue: "A shelf full of books. The smell of old paper is comforting." },
+                    desk: { x: canvas.width - 100, y: 120, width: 100, height: 60, color: '#8B4513', dialogue: "My usual study desk. A half-read book on Asorian history sits here." },
+                    globe: { x: canvas.width - 80, y: canvas.height - 100, width: 50, height: 50, color: '#3498DB', dialogue: "A globe of the world. So many places I've yet to see." }
+                },
+                package: { x: canvas.width / 2, y: canvas.height / 2, size: canvas.width * 0.08, color: '#FF00FF', interacted: false },
+                door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }, 
+                dialogue: ["I was sitting in the library at school like normal...", "Then I saw a giant package in the middle of the room. It seems to be vibrating.", "I should go look at it."]
+            },
+            library_destroyed: {
+                 interactables: {
+                    bookshelf: { x: 50, y: 100, width: 40, height: 150, color: '#4d3319', dialogue: "The bookshelf is shattered. Soaked books are strewn everywhere." },
+                    desk: { x: canvas.width - 100, y: 120, width: 100, height: 60, color: '#603808', dialogue: "My desk is overturned. The book is gone, washed away." },
+                    globe: { x: canvas.width - 80, y: canvas.height - 100, width: 50, height: 50, color: '#24689A', dialogue: "The globe is cracked, half-filled with sloshing water." }
+                },
+                door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#603808' },
+                dialogue: ["When I opened my eyes, the library was destroyed. Water everywhere...", "I have to get out of here."]
+            },
+            hallway: { 
+                roamingEnemies: [], 
+                waters: [], 
+                door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }
+            },
             battle: {},
-            hallway: { door: { x: canvas.width / 2, y: canvas.height - 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }, dialogue: ["When I opened my eyes, the room was destroyed. Water everywhere...", "I have to get out of here. Dodge the water!"], waters: [] },
             storage: { dialogue: ["I came to a supply storage. I'll use my water bottle to open it...", "*click*", "WHOA... I'm falling!"] },
             magic_world: { silhouette: { x: canvas.width / 2, y: 100, size: canvas.width * 0.05, color: '#222' }, dialogue: ["I landed on something wet... I was in some magical wall.", "I looked around and saw a dark silhouette."] },
             prophecy: { dialogue: ["Silhouette: 'Do not be afraid. I am your friend. Do you want to hear a prophecy?'", "Asor: '...Yes?'", "Silhouette: 'When the sky is filled with water... And the water covers the world's edge...'", "Silhouette: 'A student, a bottle, and a power from the water...'", "Suddenly, the water rushed in with immense power..."] },
@@ -309,13 +355,26 @@
                 return; 
             }
             if (gameState.interactionTarget) {
+                if (gameState.interactionTarget.dialogue) { // Generic interactable
+                    startDialogue([gameState.interactionTarget.dialogue]);
+                    gameState.interactionTarget = null;
+                    return;
+                }
                 switch (gameState.interactionTarget) {
-                    case 'package': transitionToOutside(); break;
-                    case 'outside_trapdoor': 
-                        gameState.currentScene = 'storage'; 
-                        startDialogue(scenes.storage.dialogue);
+                    case 'package': transitionToDestroyedLibrary(); break;
+                    case 'library_door': 
+                        gameState.currentScene = 'hallway';
+                        player.x = canvas.width/2; player.y = canvas.height - 60;
+                        initializeHallwayScene();
                         break;
-                    case 'hallway_door': gameState.currentScene = 'storage'; startDialogue(scenes.storage.dialogue); break;
+                    case 'hallway_door':
+                        if (!gameState.coolerBossDefeated) {
+                            startBattle(enemies.water_cooler);
+                        } else {
+                             gameState.currentScene = 'storage'; 
+                             startDialogue(scenes.storage.dialogue);
+                        }
+                        break;
                     case 'silhouette': 
                         gameState.currentScene = 'prophecy'; 
                         secretInput = ''; secretDisplay.textContent = ''; secretDisplay.style.display = 'block';
@@ -370,7 +429,7 @@
         }
 
         // --- SCENE TRANSITIONS & OVERWORLD ---
-        function transitionToOutside() {
+        function transitionToDestroyedLibrary() {
             scenes.library.package.interacted = true;
             let flashes = 0;
             const explosionInterval = setInterval(() => {
@@ -379,25 +438,24 @@
                 if (flashes > 5) {
                     clearInterval(explosionInterval);
                     document.body.style.backgroundColor = '#000';
-                    gameState.currentScene = 'outside';
+                    gameState.currentScene = 'library_destroyed';
                     player.x = canvas.width/2; player.y = canvas.height - 60;
-                    initializeOutsideScene();
+                    startDialogue(scenes.library_destroyed.dialogue);
                 }
             }, 100);
         }
 
-        function initializeOutsideScene() {
-            scenes.outside.roamingEnemies = [];
+        function initializeHallwayScene() {
+            scenes.hallway.roamingEnemies = [];
+            scenes.hallway.waters = [];
             for (let i = 0; i < 2; i++) {
                 spawnOverworldEnemy('water_droplet');
                 spawnOverworldEnemy('water_bottle');
             }
-            setInterval(() => {
-                 if (gameState.currentScene === 'outside') {
-                    const hazard = { x: -20, y: Math.random() * canvas.height, width: 30, height: 5, speed: 4 + Math.random() * 2 };
-                    scenes.outside.environmentalHazards.push(hazard);
-                 }
-            }, 2000);
+            for (let i = 0; i < 15; i++) { // More water hazards
+                 const hazard = { x: Math.random() * canvas.width, y: -20 - Math.random() * canvas.height, width: 5, height: 30, speed: 2 + Math.random() * 2 };
+                 scenes.hallway.waters.push(hazard);
+            }
         }
 
         function spawnOverworldEnemy(type) {
@@ -409,11 +467,11 @@
                 const dy = player.y - y;
                 dist = Math.sqrt(dx*dx + dy*dy);
             } while (dist < 200); // Don't spawn too close
-            scenes.outside.roamingEnemies.push({ type: type, x: x, y: y, speed: 0.8 + Math.random() * 0.5 });
+            scenes.hallway.roamingEnemies.push({ type: type, x: x, y: y, speed: 0.8 + Math.random() * 0.5 });
         }
         
         function respawnOverworldEnemies() {
-            scenes.outside.roamingEnemies.forEach(enemy => {
+            scenes.hallway.roamingEnemies.forEach(enemy => {
                 let x, y, dist;
                 do {
                     x = Math.random() * canvas.width;
@@ -430,15 +488,15 @@
         // --- BATTLE SYSTEM ---
         function startBattle(enemyData, overworldEnemy) {
             let enemyInstance;
-            if (enemyData.name === '???') { // Handle secret boss separately
+            if (enemyData.name === '???') { // Handle secret boss
                 enemyInstance = { ...enemyData };
             } else {
                 enemyInstance = { ...enemyData, state: enemyData.state };
             }
 
             if (overworldEnemy) {
-                const index = scenes.outside.roamingEnemies.indexOf(overworldEnemy);
-                if (index > -1) scenes.outside.roamingEnemies.splice(index, 1);
+                const index = scenes.hallway.roamingEnemies.indexOf(overworldEnemy);
+                if (index > -1) scenes.hallway.roamingEnemies.splice(index, 1);
             }
 
             gameState.inBattle = true;
@@ -509,6 +567,7 @@
                     break;
                 case 'ITEM':
                     if (player.heals > 0) {
+                        gameState.battleState = 'WAITING'; // Lock input
                         player.heals--;
                         const healAmount = Math.floor(player.maxHp * 0.4);
                         player.hp = Math.min(player.maxHp, player.hp + healAmount);
@@ -524,22 +583,22 @@
         });
         
         function handleAct(act) {
+            gameState.battleState = 'WAITING'; // Lock input
             let logText = `* You selected ${act}. `;
             let attackBoost = 1;
             
-            // Handle new state-based system
             if (gameState.enemy.actLogic) {
                 const result = gameState.enemy.actLogic(act, gameState.enemy.state);
                 gameState.enemy.state = result.newState;
                 logText += result.response;
-                if (gameState.enemy.state.includes('agitated') || gameState.enemy.state.includes('fizzing')) {
+                if (gameState.enemy.state.includes('agitated') || gameState.enemy.state.includes('fizzing') || gameState.enemy.state.includes('annoyed')) {
                     attackBoost = 1.5;
                 }
                 if (gameState.enemy.state === gameState.enemy.pacifyState) {
                     gameState.enemyPacified = true;
                     logText += `\n* ${gameState.enemy.name} is completely pacified.`;
                 }
-            } else { // Fallback for old system (secret boss)
+            } else { // Fallback for secret boss
                 if (gameState.enemy.actResponses[act]) {
                     if (!gameState.enemy.usedActs.has(act)) {
                         gameState.enemy.usedActs.add(act);
@@ -576,8 +635,8 @@
                     projectiles = [];
                     if (player.hp <= 0) loseBattle();
                     else playerChoicePhase(`* ${gameState.enemy.name} is ${gameState.enemy.state || 'waiting'}.`);
-                }, 7000); // Increased attack duration
-            }, 3000); // Increased pre-attack wait time
+                }, 10000); // Longer attack duration
+            }, 3000); 
         }
 
         function generateEnemyAttack(attackMultiplier) {
@@ -586,20 +645,21 @@
             const boxSize = 150;
             const power = gameState.enemy.attackPower * attackMultiplier;
 
-            // Water Droplet Attacks
-            if (pattern === 'drip') for (let i = 0; i < 5; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: -10, vx: 0, vy: 2 + Math.random(), type: 'circle', power }); }, i * 300);
-            if (pattern === 'splash_up') for (let i = 0; i < 8; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: boxSize + 10, vx: 0, vy: -2.5, type: 'circle', power }); }, i * 150);
-            if (pattern === 'slanted_rain') for (let i = 0; i < 10; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -10, y: Math.random() * boxSize, vx: 2, vy: 2, type: 'rect', power }); }, i * 150);
+            if (pattern === 'drip') for (let i = 0; i < 7; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: -10, vx: 0, vy: 1.5 + Math.random(), type: 'circle', power }); }, i * 400);
+            if (pattern === 'splash_up') for (let i = 0; i < 10; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: boxSize + 10, vx: 0, vy: -2, type: 'circle', power }); }, i * 200);
+            if (pattern === 'slanted_rain') for (let i = 0; i < 12; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -10, y: Math.random() * boxSize, vx: 1.5, vy: 1.5, type: 'rect', power }); }, i * 200);
             
-            // Water Bottle Attacks
-            if (pattern === 'squirt') for (let i = 0; i < 5; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: boxSize/2, y: 0, vx: (Math.random()-0.5)*3, vy: 4, type: 'rect', power }); }, i * 200);
-            if (pattern === 'cap_throw') { const p = createProjectile({ x: 0, y: boxSize - 20, vx: 3, vy: -4, type: 'circle', power }); p.bounces = 4; }
-            if (pattern === 'spill') { const p = createProjectile({ x: boxSize/2, y: boxSize - 10, vx: 0, vy: 0, type: 'puddle', power, width: 10, height: 10 }); p.growth = 1.05; }
+            if (pattern === 'squirt') for (let i = 0; i < 7; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: boxSize/2, y: 0, vx: (Math.random()-0.5)*2, vy: 3, type: 'rect', power }); }, i * 250);
+            if (pattern === 'cap_throw') { const p = createProjectile({ x: 0, y: boxSize - 20, vx: 4, vy: -5, type: 'circle', power }); p.bounces = 5; }
+            if (pattern === 'spill') { const p = createProjectile({ x: boxSize/2, y: boxSize - 10, vx: 0, vy: 0, type: 'puddle', power, width: 10, height: 10 }); p.growth = 1.04; }
 
-            // Boss Attacks (Unchanged)
-            if (pattern === 'shadow_blades') for (let i = 0; i < 4; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -20, y: (Math.random() * (boxSize - 10)), vx: 4 + Math.random(), vy: 0, type: 'rect', color: '#333', power }); createProjectile({ x: (Math.random() * (boxSize - 10)), y: -20, vx: 0, vy: 4 + Math.random(), type: 'rect', color: '#333', power }); }, i * 600);
-            if (pattern === 'dark_tendrils') for (let i = 0; i < 3; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * boxSize, y: -10, vx: 0, vy: 1, type: 'rect', color: '#333', follow: true, power }); }, i * 1000);
-            if (pattern === 'void_pulse') for (let i = 0; i < 3; i++) setTimeout(() => { for(let j=0; j<16; j++) { const angle = (j/16) * 2 * Math.PI; createProjectile({ x: boxSize/2, y: boxSize/2, vx: Math.cos(angle) * 2, vy: Math.sin(angle) * 2, type: 'circle', color: '#333', power }); } }, 2000 + (i * 1200));
+            if (pattern === 'stream') for (let i = 0; i < 40; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; const y = (boxSize/2) + Math.sin(i * 0.2) * (boxSize/2.2); createProjectile({ x: -10, y: y, vx: 3, vy: 0, type: 'rect', power, lifetime: 2000 }); }, i * 200);
+            if (pattern === 'geyser') for (let i = 0; i < 3; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; const x = Math.random() * (boxSize - 20); for(let j=0; j<8; j++){ setTimeout(()=>createProjectile({ x: x, y: boxSize + 10, vx: 0, vy: -4, type: 'circle', power }), j*50);}}, i * 2000);
+            if (pattern === 'bubble_burst') for (let i = 0; i < 4; i++) setTimeout(() => { const bubble = createProjectile({ x: Math.random() * (boxSize-30), y: Math.random() * (boxSize-30), vx: (Math.random()-0.5), vy: (Math.random()-0.5), type: 'circle', power: 0, color: 'rgba(0,255,255,0.5)', width:30, height:30 }); setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; for(let j=0; j<8; j++){ const angle = (j/8)*2*Math.PI; createProjectile({ x: bubble.x, y: bubble.y, vx: Math.cos(angle)*2, vy: Math.sin(angle)*2, type: 'circle', power });} bubble.element.remove(); }, 2000);}, i * 1500);
+
+            if (pattern === 'shadow_blades') for (let i = 0; i < 5; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -20, y: (Math.random() * (boxSize - 10)), vx: 3 + Math.random(), vy: 0, type: 'rect', color: '#333', power }); createProjectile({ x: (Math.random() * (boxSize - 10)), y: -20, vx: 0, vy: 3 + Math.random(), type: 'rect', color: '#333', power }); }, i * 700);
+            if (pattern === 'dark_tendrils') for (let i = 0; i < 4; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * boxSize, y: -10, vx: 0, vy: 0.8, type: 'rect', color: '#333', follow: true, power }); }, i * 1200);
+            if (pattern === 'void_pulse') for (let i = 0; i < 3; i++) setTimeout(() => { for(let j=0; j<16; j++) { const angle = (j/16) * 2 * Math.PI; createProjectile({ x: boxSize/2, y: boxSize/2, vx: Math.cos(angle) * 1.5, vy: Math.sin(angle) * 1.5, type: 'circle', color: '#333', power }); } }, 2000 + (i * 1500));
         }
 
         function createProjectile(config) {
@@ -607,10 +667,11 @@
             p.style.position = 'absolute';
             p.style.backgroundColor = config.color || 'cyan';
             
-            let width, height;
-            if (config.type === 'circle') { width = 10; height = 10; p.style.borderRadius = '50%'; } 
-            else if (config.type === 'puddle') { width = config.width; height = config.height; p.style.borderRadius = '30%'; p.style.opacity = '0.7'; }
-            else { width = 20; height = 5; }
+            let width = config.width || (config.type === 'circle' ? 10 : 20);
+            let height = config.height || (config.type === 'circle' ? 10 : 5);
+            if (config.type === 'circle') p.style.borderRadius = '50%';
+            else if (config.type === 'puddle') { p.style.borderRadius = '30%'; p.style.opacity = '0.7'; }
+            
             p.style.width = `${width}px`; p.style.height = `${height}px`;
 
             const projectileData = { element: p, ...config, width, height, createdAt: Date.now() };
@@ -622,16 +683,17 @@
         function winBattle() {
             gameState.battleState = 'BATTLE_OVER'; battleLog.textContent = `* You won!`;
             setTimeout(() => {
-                if (gameState.enemy.name === '???') { gameState.secretBossDefeated = true; endBattle(); }
-                else { endBattle(); }
+                if (gameState.enemy.name === 'Water Cooler') gameState.coolerBossDefeated = true;
+                if (gameState.enemy.name === '???') gameState.secretBossDefeated = true;
+                endBattle();
             }, 1500);
         }
         function loseBattle() { gameState.gameOver = true; battleLog.textContent = "* You were defeated..."; }
         function endBattle() {
              gameState.inBattle = false; battleContainer.style.display = 'none';
              if (gameState.secretBossDefeated) { gameState.currentScene = 'end'; startDialogue(scenes.end.secretDialogue); return; }
-             gameState.currentScene = 'outside';
-             respawnOverworldEnemies(); // Respawn remaining enemies
+             gameState.currentScene = 'hallway'; // Return to hallway after battle
+             respawnOverworldEnemies(); 
         }
 
         function updateBattleUI() {
@@ -650,17 +712,18 @@
                 if (keys['ArrowLeft'] || keys['a']) player.x = Math.max(0, player.x - player.speed);
                 if (keys['ArrowRight'] || keys['d']) player.x = Math.min(canvas.width - player.size / 2, player.x + player.speed);
                 
-                if (gameState.currentScene === 'outside') {
+                if (gameState.currentScene === 'hallway') {
                     // Update and check collisions for roaming enemies
-                    scenes.outside.roamingEnemies.forEach(enemy => {
+                    scenes.hallway.roamingEnemies.forEach(enemy => {
                         const enemyData = enemies[enemy.type];
                         const dx = player.x - enemy.x; const dy = player.y - enemy.y;
                         const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist > 0) { enemy.x += (dx/dist) * enemy.speed; enemy.y += (dy/dist) * enemy.speed; }
+                        if (dist < 150) { // Short detection radius
+                            if (dist > 0) { enemy.x += (dx/dist) * enemy.speed; enemy.y += (dy/dist) * enemy.speed; }
+                        }
                         if (dist < (player.size + enemyData.size) / 2) { startBattle(enemies[enemy.type], enemy); }
                     });
-                    scenes.outside.environmentalHazards.forEach((hazard, index) => { hazard.x += hazard.speed; if (hazard.x > canvas.width) scenes.outside.environmentalHazards.splice(index, 1); });
-                    // if (scenes.outside.roamingEnemies.length === 0) scenes.outside.trapdoor.active = true; // REMOVED
+                    scenes.hallway.waters.forEach((hazard) => { hazard.y += hazard.speed; if (hazard.y > canvas.height) { hazard.y = -20 - Math.random() * 50; hazard.x = Math.random() * canvas.width; } });
                 }
                 checkCollisions();
             } else if (gameState.inBattle) {
@@ -685,7 +748,7 @@
                     playerSoul.style.left = `${player.soul.x}px`; playerSoul.style.top = `${player.soul.y}px`;
 
                     projectiles.forEach((p, index) => {
-                        if (p.follow) { const dx = player.soul.x - p.x; const dy = player.soul.y - p.y; const dist = Math.sqrt(dx*dx+dy*dy); p.vx += (dx/dist)*0.1; p.vy += (dy/dist)*0.1; }
+                        if (p.follow) { const dx = player.soul.x - p.x; const dy = player.soul.y - p.y; const dist = Math.sqrt(dx*dx+dy*dy); if (dist>0) { p.vx += (dx/dist)*0.1; p.vy += (dy/dist)*0.1; } }
                         if (p.growth) { p.width *= p.growth; p.height *= p.growth; p.x -= (p.width * (p.growth - 1))/2; p.y -= (p.height*(p.growth - 1))/2; p.element.style.width = `${p.width}px`; p.element.style.height = `${p.height}px`; p.element.style.left = `${p.x}px`; p.element.style.top = `${p.y}px`; }
                         else { p.x += p.vx; p.y += p.vy; }
 
@@ -693,7 +756,7 @@
                         if(p.bounces > 0 && (p.x < 0 || p.x > boxBounds.width - p.width)) { p.vx *= -1; p.bounces--; }
                         
                         p.element.style.left = `${p.x}px`; p.element.style.top = `${p.y}px`;
-                        if (p.x < -40 || p.x > boxBounds.width + 20 || p.y < -40 || p.y > boxBounds.height + 20) { p.element.remove(); projectiles.splice(index, 1); return; }
+                        if (p.x < -40 || p.x > boxBounds.width + 20 || p.y < -40 || p.y > boxBounds.height + 20 || (p.lifetime && Date.now() - p.createdAt > p.lifetime)) { p.element.remove(); projectiles.splice(index, 1); return; }
                         
                         const soulSize = 20;
                         if ( player.soul.x < p.x + p.width && player.soul.x + soulSize > p.x && player.soul.y < p.y + p.height && soulSize + player.soul.y > p.y ) {
@@ -712,21 +775,33 @@
         
         function checkCollisions() {
             gameState.interactionTarget = null; let target = null;
+            const scene = scenes[gameState.currentScene];
+
+            if (scene.interactables) {
+                for (const key in scene.interactables) {
+                    target = scene.interactables[key];
+                    if (player.x > target.x && player.x < target.x + target.width && player.y > target.y && player.y < target.y + target.height) {
+                         gameState.interactionTarget = target;
+                         return;
+                    }
+                }
+            }
+
             switch(gameState.currentScene) {
                 case 'library':
-                    target = scenes.library.package;
+                    target = scene.package;
                     if (!target.interacted && Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'package'; }
                     break;
-                case 'outside':
-                    target = scenes.outside.trapdoor;
-                    if (target.active && Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'outside_trapdoor'; }
+                case 'library_destroyed':
+                    target = scene.door;
+                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.height) / 2) { gameState.interactionTarget = 'library_door'; }
                     break;
                 case 'hallway':
-                    target = scenes.hallway.door;
+                    target = scene.door;
                     if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.height) / 2) { gameState.interactionTarget = 'hallway_door'; }
                     break;
                 case 'magic_world':
-                    target = scenes.magic_world.silhouette;
+                    target = scene.silhouette;
                     if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'silhouette'; }
                     break;
             }
@@ -736,9 +811,9 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             switch(gameState.currentScene) {
                 case 'library': ctx.fillStyle = '#4a2c2a'; break;
-                case 'outside': ctx.fillStyle = '#228B22'; break;
-                case 'battle': ctx.fillStyle = '#000'; break;
+                case 'library_destroyed': ctx.fillStyle = '#3b2f2f'; break;
                 case 'hallway': ctx.fillStyle = '#333'; break;
+                case 'battle': ctx.fillStyle = '#000'; break;
                 case 'storage': ctx.fillStyle = '#111'; break;
                 case 'magic_world': ctx.fillStyle = '#2d0f2d'; break;
                 case 'prophecy': ctx.fillStyle = '#2d0f2d'; break;
@@ -758,42 +833,45 @@
 
         function drawScene() {
             ctx.save();
+            const scene = scenes[gameState.currentScene];
+
+            if (scene.interactables) {
+                 for (const key in scene.interactables) {
+                    const obj = scene.interactables[key];
+                    ctx.fillStyle = obj.color;
+                    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+                 }
+            }
+
             switch(gameState.currentScene) {
                 case 'library':
-                    const pkg = scenes.library.package;
+                    const pkg = scene.package;
                     if (!pkg.interacted) { ctx.fillStyle = pkg.color; ctx.fillRect(pkg.x - pkg.size / 2, pkg.y - pkg.size / 2, pkg.size, pkg.size); }
-                    const door_lib = scenes.library.door; ctx.fillStyle = door_lib.color; ctx.fillRect(door_lib.x - door_lib.size / 2, door_lib.y - door_lib.height / 2, door_lib.size, door_lib.height);
+                    const door_lib = scene.door; ctx.fillStyle = door_lib.color; ctx.fillRect(door_lib.x - door_lib.size / 2, door_lib.y - door_lib.height / 2, door_lib.size, door_lib.height);
                     break;
-                case 'outside':
-                    scenes.outside.roamingEnemies.forEach(enemy => {
+                case 'library_destroyed':
+                    const door_lib_d = scene.door; ctx.fillStyle = door_lib_d.color; ctx.fillRect(door_lib_d.x - door_lib_d.size / 2, door_lib_d.y - door_lib_d.height / 2, door_lib_d.size, door_lib_d.height);
+                    break;
+                case 'hallway':
+                    scene.roamingEnemies.forEach(enemy => {
                         const data = enemies[enemy.type];
                         ctx.fillStyle = data.color;
                         if (data.isCircle) { ctx.beginPath(); ctx.arc(enemy.x, enemy.y, data.size / 3, 0, Math.PI * 2); ctx.fill(); }
                         else { ctx.fillRect(enemy.x - data.size / 3, enemy.y - data.size / 3, data.size/1.5, data.size/1.5 * 1.5); }
                     });
-                     scenes.outside.environmentalHazards.forEach(h => { ctx.fillStyle = '#00BFFF'; ctx.fillRect(h.x, h.y, h.width, h.height); });
-                    if(scenes.outside.trapdoor.active) {
-                        const trapdoor = scenes.outside.trapdoor; 
-                        ctx.fillStyle = trapdoor.color; 
-                        ctx.fillRect(trapdoor.x - trapdoor.size / 2, trapdoor.y - trapdoor.size / 2, trapdoor.size, trapdoor.size);
-                        ctx.strokeStyle = '#222';
-                        ctx.lineWidth = 4;
-                        ctx.strokeRect(trapdoor.x - trapdoor.size / 2, trapdoor.y - trapdoor.size / 2, trapdoor.size, trapdoor.size);
-                    }
+                    scene.waters.forEach(h => { ctx.fillStyle = '#00BFFF'; ctx.fillRect(h.x, h.y, h.width, h.height); });
+                    const door_hall = scene.door; ctx.fillStyle = door_hall.color; ctx.fillRect(door_hall.x - door_hall.size / 2, door_hall.y - door_hall.height / 2, door_hall.size, door_hall.height);
                     break;
                 case 'battle':
                     const enemy = gameState.enemy;
                     if (enemy) {
                         ctx.fillStyle = enemy.color;
                         if(enemy.isCircle) { ctx.beginPath(); ctx.arc(canvas.width / 2, 120, enemy.size / 2, 0, Math.PI * 2); ctx.fill(); } 
-                        else { ctx.fillRect(canvas.width / 2 - enemy.size / 2, 120 - enemy.size / 2, enemy.size, enemy.size * (enemy.name === 'Water Bottle' ? 2.5 : 2)); }
+                        else { ctx.fillRect(canvas.width / 2 - enemy.size / 2, 120 - enemy.size / 2, enemy.size, enemy.size * (enemy.name === 'Water Bottle' ? 2.5 : 1.5)); }
                     }
                     break;
-                case 'hallway':
-                    const door_hall = scenes.hallway.door; ctx.fillStyle = door_hall.color; ctx.fillRect(door_hall.x - door_hall.size / 2, door_hall.y - door_hall.height / 2, door_hall.size, door_hall.height);
-                    break;
                 case 'magic_world':
-                    const sil = scenes.magic_world.silhouette; ctx.fillStyle = sil.color; ctx.fillRect(sil.x - sil.size / 2, sil.y - sil.size / 2, sil.size, sil.size * 2);
+                    const sil = scene.silhouette; ctx.fillStyle = sil.color; ctx.fillRect(sil.x - sil.size / 2, sil.y - sil.size / 2, sil.size, sil.size * 2);
                     break;
             }
             ctx.restore();
