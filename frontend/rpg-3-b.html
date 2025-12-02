@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Weather RPG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #162447;
+            cursor: crosshair;
+            border-radius: 0.5rem;
+            border: 4px solid #1f4068;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+        }
+        .ui-panel {
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+        }
+        .weapon-btn {
+            background-color: #4a5568;
+            border: 2px solid #2d3748;
+            transition: all 0.2s;
+            font-size: 0.7rem;
+        }
+        .weapon-btn.active {
+            background-color: #a0aec0;
+            border-color: #718096;
+            transform: scale(1.1);
+        }
+        .setting-btn {
+            background-color: #4a5568;
+            border: 2px solid #2d3748;
+            transition: all 0.2s;
+            width: 300px;
+        }
+        .setting-btn.active {
+            background-color: #6ee7b7;
+            border-color: #86efac;
+            color: #1a1a2e;
+        }
+        .hidden {
+            display: none;
+        }
+        .gui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 10, 20, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+        }
+        .gui-button {
+            padding: 0.75rem 2rem;
+            font-size: 1.25rem;
+            color: #1a1a2e;
+            background-color: #6ee7b7;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .gui-button:hover {
+            transform: scale(1.05);
+            background-color: #86efac;
+        }
+        #gui-editor {
+            background-color: rgba(10, 10, 20, 0.95);
+            z-index: 20;
+        }
+        .tile-palette-item {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #4a5568;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tile-palette-item.selected {
+            border-color: #fcd34d;
+            transform: scale(1.15);
+        }
+        #level-data-textarea {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            resize: none;
+        }
+        #cutscene-overlay {
+            background-color: white;
+            color: black;
+            transition: opacity 2s;
+            pointer-events: auto;
+            z-index: 50;
+        }
+        .dialogue-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            background-color: rgba(0,0,0,0.8);
+            border: 2px solid white;
+            padding: 20px;
+            color: white;
+            font-size: 14px;
+            display: none;
+            z-index: 30;
+        }
+        .interaction-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -150%);
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 10px;
+            pointer-events: none;
+            white-space: nowrap;
+            display: none;
+            z-index: 25;
+        }
+        /* Wingdings font class */
+        .font-wingdings {
+            font-family: "Wingdings", "Webdings", serif;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container" class="game-container relative">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+       
+        <div id="ui-panel" class="ui-panel mt-4 w-full max-w-4xl text-sm hidden">
+            <div class="flex justify-between items-center">
+                <div>
+                    Health: <span id="health" class="text-green-400">100</span> |
+                    Level: <span id="level" class="text-yellow-300">1</span> |
+                    <span id="enemies-label">Enemies:</span> <span id="enemies-left" class="text-red-400">0</span>
+                </div>
+                 <div>Timer: <span id="timer" class="text-white">00:00:000</span></div>
+                <div>Weather: <span id="weather" class="text-cyan-300">Clear</span> (<span id="weather-timer" class="text-cyan-300">20</span>s)</div>
+            </div>
+            <div id="weapon-select" class="flex justify-center gap-4 mt-2">
+                <!-- Weapon buttons will be generated here -->
+            </div>
+        </div>
+       
+        <div id="dialogue-box" class="dialogue-box">
+            <p id="dialogue-text"></p>
+            <p class="text-xs text-gray-400 mt-2">[Press Space to Close]</p>
+        </div>
+       
+        <div id="interaction-prompt" class="interaction-prompt">Press E</div>
+
+        <!-- Cutscene Overlay -->
+        <div id="cutscene-overlay" class="gui-overlay hidden" style="opacity: 1;">
+            <div id="cutscene-content">
+                <h1 class="text-4xl mb-4">...</h1>
+                <p id="cutscene-text" class="text-lg max-w-md"></p>
+            </div>
+        </div>
+
+        <!-- Chapter 1 Main Menu -->
+        <div id="gui-menu-ch1" class="gui-overlay">
+            <h1 class="text-5xl text-yellow-300 mb-4">Duck Weather RPG</h1>
+            <p class="text-lg text-gray-300 mb-2 max-w-md">Chapter 1: The Lazarus Threat</p>
+            <div class="flex flex-col gap-4">
+                <button id="start-button-ch1" class="gui-button">Start Adventure</button>
+                <button id="editor-button-ch1" class="gui-button bg-blue-400 hover:bg-blue-300">Level Editor (Ch 1)</button>
+                <button id="settings-button-ch1" class="gui-button bg-gray-500 hover:bg-gray-400">Settings</button>
+                <button id="goto-ch2-button" class="gui-button bg-purple-500 hover:bg-purple-400">Go to Chapter 2</button>
+            </div>
+        </div>
+       
+        <!-- Chapter 2 Main Menu -->
+        <div id="gui-menu-ch2" class="gui-overlay hidden">
+            <h1 class="text-5xl text-blue-300 mb-4">Duck Weather RPG</h1>
+            <p class="text-lg text-gray-300 mb-2 max-w-md">Chapter 2: The EUROPE Conspiracy</p>
+            <div class="flex flex-col gap-4">
+                <button id="start-button-ch2" class="gui-button">Start Adventure</button>
+                <button id="editor-button-ch2" class="gui-button bg-blue-400 hover:bg-blue-300">Level Editor (Ch 2)</button>
+                <button id="settings-button-ch2" class="gui-button bg-gray-500 hover:bg-gray-400">Settings</button>
+                <button id="goto-ch3-button" class="gui-button bg-purple-500 hover:bg-purple-400">Go to Chapter 3</button>
+                <button id="goto-ch1-button" class="gui-button bg-gray-500 hover:bg-gray-400">Back to Chapter 1</button>
+            </div>
+        </div>
+
+        <!-- Chapter 3 Main Menu -->
+        <div id="gui-menu-ch3" class="gui-overlay hidden">
+            <h1 class="text-5xl text-red-500 mb-4" style="font-family: monospace;">Duck Weather RPG</h1>
+            <p class="text-lg text-gray-300 mb-2 max-w-md">Chapter 3: The Real World</p>
+            <div class="flex flex-col gap-4">
+                <button id="start-button-ch3" class="gui-button bg-red-600 hover:bg-red-500">Wake Up</button>
+                <button id="editor-button-ch3" class="gui-button bg-blue-400 hover:bg-blue-300">Level Editor (Ch 3)</button>
+                <button id="settings-button-ch3" class="gui-button bg-gray-500 hover:bg-gray-400">Settings</button>
+                <button id="goto-ch2-back-button" class="gui-button bg-gray-500 hover:bg-gray-400">Back to Chapter 2</button>
+            </div>
+        </div>
+
+        <div id="gui-message" class="gui-overlay hidden">
+            <h2 id="message-title" class="text-4xl mb-4"></h2>
+            <p id="message-text" class="text-lg mb-8"></p>
+            <button id="message-button" class="gui-button"></button>
+        </div>
+
+        <div id="gui-pause" class="gui-overlay hidden">
+            <h2 class="text-4xl text-yellow-300 mb-8">Paused</h2>
+            <div class="flex flex-col gap-4">
+                <button id="resume-button" class="gui-button">Resume</button>
+                <button id="main-menu-button" class="gui-button bg-red-500 hover:bg-red-400">Main Menu</button>
+            </div>
+        </div>
+
+        <!-- Settings Menu -->
+        <div id="gui-settings" class="gui-overlay hidden">
+            <h2 class="text-3xl text-yellow-300 mb-6">Settings</h2>
+            <div class="flex flex-col gap-4">
+                <h3 class="text-xl">Attack Controls</h3>
+                <div class="flex flex-col gap-3">
+                    <button id="setting-attack-mouse" class="gui-button setting-btn active">Mouse</button>
+                    <button id="setting-attack-arrows" class="gui-button setting-btn">Arrow Keys</button>
+                    <button id="setting-attack-wasd" class="gui-button setting-btn">WASD</button>
+                </div>
+
+                <h3 class="text-xl mt-4">Movement Controls</h3>
+                <div class="flex flex-col gap-3">
+                    <button id="setting-move-arrows" class="gui-button setting-btn active">Arrow Keys</button>
+                    <button id="setting-move-wasd" class="gui-button setting-btn">WASD</button>
+                </div>
+            </div>
+             <button id="settings-back-button" class="gui-button mt-8 bg-gray-500 hover:bg-gray-400">Back</button>
+        </div>
+
+        <div id="gui-editor" class="gui-overlay hidden">
+             <h2 class="text-3xl text-yellow-300 mb-4">Level Editor</h2>
+             <div class="flex gap-4 items-start">
+                <div class="flex flex-col gap-2 p-2 bg-black bg-opacity-20 rounded-lg">
+                    <h3 class="text-sm border-b border-gray-600 pb-1">Tiles</h3>
+                    <div id="tile-palette" class="grid grid-cols-4 gap-2">
+                        <!-- Tiles will be generated here -->
+                    </div>
+                </div>
+                <div class="flex flex-col gap-3">
+                     <textarea id="level-data-textarea" class="w-96 h-24 p-2 rounded text-xs" placeholder="Paste level data here..."></textarea>
+                     <div class="grid grid-cols-2 gap-2">
+                         <button id="copy-level-btn" class="gui-button text-sm p-2 bg-purple-500 hover:bg-purple-400">Copy Layout</button>
+                         <button id="paste-level-btn" class="gui-button text-sm p-2 bg-purple-500 hover:bg-purple-400">Paste Layout</button>
+                         <button id="test-level-btn" class="gui-button text-sm p-2 col-span-2 bg-green-500 hover:bg-green-400">Test Level</button>
+                     </div>
+                </div>
+             </div>
+             <button id="exit-editor-btn" class="gui-button mt-4 bg-red-500 hover:bg-red-400">Exit Editor</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Canvas and UI Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiPanel = document.getElementById('ui-panel');
+        const healthUI = document.getElementById('health');
+        const levelUI = document.getElementById('level');
+        const enemiesLabelUI = document.getElementById('enemies-label');
+        const enemiesLeftUI = document.getElementById('enemies-left');
+        const weatherUI = document.getElementById('weather');
+        const weatherTimerUI = document.getElementById('weather-timer');
+        const weaponSelectUI = document.getElementById('weapon-select');
+        const timerUI = document.getElementById('timer');
+       
+        // Menus
+        const guiMenuCh1 = document.getElementById('gui-menu-ch1');
+        const guiMenuCh2 = document.getElementById('gui-menu-ch2');
+        const guiMenuCh3 = document.getElementById('gui-menu-ch3');
+        const startButtonCh1 = document.getElementById('start-button-ch1');
+        const editorButtonCh1 = document.getElementById('editor-button-ch1');
+        const settingsButtonCh1 = document.getElementById('settings-button-ch1');
+        const gotoCh2Button = document.getElementById('goto-ch2-button');
+       
+        const startButtonCh2 = document.getElementById('start-button-ch2');
+        const editorButtonCh2 = document.getElementById('editor-button-ch2');
+        const settingsButtonCh2 = document.getElementById('settings-button-ch2');
+        const gotoCh1Button = document.getElementById('goto-ch1-button');
+        const gotoCh3Button = document.getElementById('goto-ch3-button');
+
+        const startButtonCh3 = document.getElementById('start-button-ch3');
+        const editorButtonCh3 = document.getElementById('editor-button-ch3');
+        const settingsButtonCh3 = document.getElementById('settings-button-ch3');
+        const gotoCh2BackButton = document.getElementById('goto-ch2-back-button');
+
+        const guiMessage = document.getElementById('gui-message');
+        const messageTitle = document.getElementById('message-title');
+        const messageText = document.getElementById('message-text');
+        const messageButton = document.getElementById('message-button');
+        const guiPause = document.getElementById('gui-pause');
+        const resumeButton = document.getElementById('resume-button');
+        const mainMenuButton = document.getElementById('main-menu-button');
+       
+        const cutsceneOverlay = document.getElementById('cutscene-overlay');
+        const cutsceneText = document.getElementById('cutscene-text');
+        const dialogueBox = document.getElementById('dialogue-box');
+        const dialogueText = document.getElementById('dialogue-text');
+        const interactionPrompt = document.getElementById('interaction-prompt');
+
+        // Settings UI
+        const guiSettings = document.getElementById('gui-settings');
+        const settingAttackMouse = document.getElementById('setting-attack-mouse');
+        const settingAttackArrows = document.getElementById('setting-attack-arrows');
+        const settingAttackWasd = document.getElementById('setting-attack-wasd');
+        const settingsBackButton = document.getElementById('settings-back-button');
+        const attackSettingButtons = [settingAttackMouse, settingAttackArrows, settingAttackWasd];
+
+        const settingMoveArrows = document.getElementById('setting-move-arrows');
+        const settingMoveWasd = document.getElementById('setting-move-wasd');
+        const moveSettingButtons = [settingMoveArrows, settingMoveWasd];
+
+        // Editor UI
+        const guiEditor = document.getElementById('gui-editor');
+        const tilePalette = document.getElementById('tile-palette');
+        const exitEditorBtn = document.getElementById('exit-editor-btn');
+        const copyLevelBtn = document.getElementById('copy-level-btn');
+        const pasteLevelBtn = document.getElementById('paste-level-btn');
+        const testLevelBtn = document.getElementById('test-level-btn');
+        const levelDataTextarea = document.getElementById('level-data-textarea');
+
+        // --- Game Constants ---
+        const TILE_SIZE = 40;
+        const PLAYER_SPEED = 3.5;
+        const colors = {
+            player: 'yellow',
+            enemy: '#f87171',
+            enemyEurope: '#60a5fa',
+            enemyR: '#ef4444',
+            enemyRealR: '#ef4444',
+            boss: '#e11d48',
+            bossEurope: '#f59e0b',
+            bossReal: '#ffffff',
+            bossPipis: '#3b82f6',
+            bossPlant: '#22c55e',
+            bossWater: '#0ea5e9',
+            bossGaster: '#000000',
+            projectile: '#f43f5e',
+            projectileEurope: '#fbbf24',
+            projectileReal: '#ffffff',
+            attack: 'rgba(255, 255, 255, 0.3)',
+            tiles: {
+                0: '#4ade80', 1: '#78716c', 2: '#a16207', 3: '#4338ca', 4: '#2563eb', 5: '#a3a3a3', 6: '#dc2626', 7: '#9ca3af', 8: '#b91c1c', 9: '#22c55e', 10: '#000000', 11: '#fbbf24', 12: '#1e293b', 13: '#334155', 14: '#db2777'
+            }
+        };
+
+        // --- Game State ---
+        let player, enemies = [], projectiles = [], bosses = [], npcs = [], items = [], map, weapons, weather, weatherInterval, gameLoopId;
+        let keys = {};
+        let currentChapter = 1;
+        let currentLevel = 0;
+        let gameState = 'menu-ch1';
+        let lastMenuState = 'menu-ch1';
+        let mouse = { x: 0, y: 0, down: false };
+        let startTime = 0;
+        let finalTime = "00:00:000";
+        let isTestingLevel = false;
+        let editorBrush = 1;
+        let settings = { attack: 'mouse', move: 'arrowkeys' };
+        let isDialogueOpen = false;
+        let nearNPC = null;
+
+        // --- Game Data ---
+        const weaponsConfig = {
+            broadsword: { name: "Broadsword", damage: 12, range: TILE_SIZE * 1.5, cooldown: 500 },
+            dagger: { name: "Dagger", damage: 8, range: TILE_SIZE * 0.9, cooldown: 250 },
+            greatsword: { name: "Greatsword", damage: 20, range: TILE_SIZE * 2.2, cooldown: 900 },
+            katana: { name: "Katana", damage: 10, range: TILE_SIZE * 2.5, cooldown: 450 },
+            roaringSword: { name: "ROARING SWORD", damage: 50, range: TILE_SIZE * 3.0, cooldown: 300 }
+        };
+
+        const weatherTypes = [
+            { name: "Sunny", effect: "speed", value: 1.2, color: "#fcd34d" },
+            { name: "Rainy", effect: "defense", value: 0.75, color: "#60a5fa" },
+            { name: "Windy", effect: "attackSpeed", value: 0.8, color: "#9ca3af" },
+            { name: "Stormy", effect: "damage", value: 1.5, color: "#a78bfa" },
+        ];
+
+        const chapterData = {
+            1: {
+                name: "Chapter 1: The Lazarus Threat",
+                enemyClass: "Lazarus",
+                weapons: [weaponsConfig.broadsword, weaponsConfig.dagger, weaponsConfig.greatsword],
+                levels: [
+                    { name: "The Sunny Plains", enemyCount: 5, map: ["111111111111111111111111","100022200000004444000001","100220020000044444400001","102200002220004440000001","100000000022000000002201","100000000002222222222001","111111111111111111111111"] },
+                    { name: "The Dank Cave", enemyCount: 8, map: ["111111111111111111111111","133313333333333331333331","134431333111331113334431","13443133333133133334431","133331113331331333333331","133333333333333333333331","111111111111111111111111"] },
+                    { name: "Lazarus's Keep", enemyCount: 10, map: ["111111111111111111111111","155555555555555555555551","151115511155111551115511","155555555555555555555551","115511155111551115511155","155555555555555555555551","111111111111111111111111"] },
+                    { name: "Throne of Lazarus", enemyCount: 1, boss: "Lazarus", map: ["111111111111111111111111","166666666666666666666661","166661111111111111166661","166661666666666666166661","166661111111111111166661","166666666666666666666661","111111111111111111111111"] },
+                    { name: "Custom Level", enemyCount: 5, map: ["111111111111111111111111","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","111111111111111111111111"] }
+                ]
+            },
+            2: {
+                name: "Chapter 2: The EUROPE Conspiracy",
+                enemyClass: "Europe",
+                weapons: [weaponsConfig.broadsword, weaponsConfig.dagger, weaponsConfig.greatsword, weaponsConfig.katana],
+                levels: [
+                    { name: "London Streets", enemyCount: 10, map: ["111111111111111111111111","177777777777777777777771","174447774447744477444771","174447774447744477444771","177777777777777777777771","177777777777777777777771","111111111111111111111111"] },
+                    { name: "Parisian Park", enemyCount: 8, map: ["111111111111111111111111","199999999999999999999991","19222994444444499222991","192229944444CSSS44499222991","19999994444444499999991","199999999999999999999991","111111111111111111111111"] },
+                    { name: "The Big Ben", enemyCount: 1, boss: "BigBen", map: ["111111111111111111111111","177777777777777777777771","177777777778877777777771","17777778888887777777771","177777777778877777777771","177777777777777777777771","111111111111111111111111"] },
+                    { name: "Berlin Underground", enemyCount: 10, map: ["111111111111111111111111","133311333333331133333331","133311333111113331133331","133333333111113333333331","133311133333333111333331","133311133333333111333331","111111111111111111111111"] },
+                    { name: "Roman Ruins", enemyCount: 12, map: ["111111111111111111111111","122122122122122122122122","122122122122122122122122","122122122122122122122122","122122122122122122122122","122222222222222222222221","111111111111111111111111"] },
+                    { name: "The Eiffel Tower", enemyCount: 1, boss: "EiffelTower", map: ["111111111111111111111111","199999999999999999999991","19999999998899999999991","19999999888889999999991","19999999998899999999991","199999999999999999999991","111111111111111111111111"] },
+                    { name: "Custom Level", enemyCount: 5, map: ["111111111111111111111111","170000000000000000000071","100000000000000000000001","100000000000000000000001","100000000000000000000001","170000000000000000000071","111111111111111111111111"] }
+                ]
+            },
+            3: {
+                name: "Chapter 3: The Real World",
+                enemyClass: "Real",
+                weapons: [weaponsConfig.broadsword, weaponsConfig.dagger, weaponsConfig.greatsword, weaponsConfig.katana],
+                intro: true,
+                levels: [
+                    { name: "Duck Sanctuary (Hub)", enemyCount: 0, type: "hub", map: ["111111111111111111111111","1CCC9CCC9CC9C9C9C9C9C9C1","1CCC9CCC9CC9C9C9C9C9C9C2","1CCC9CCC9CC9C9C9C9C9C9C2","1CCC9CCC9CC9C9C9C9C9C9C2","1CCC9CCC9CC9C9C9C9C9C9C1","111111111111111111111111"] },
+                    { name: "Reality Glitch 1", enemyCount: 6, map: ["111111111111111111111111","1CCCCCCCCCCCCCDDDCCCCCCC1","1CC111CCCEEEEEEECC11CCC1","1CC111CCCEEEEEEECC11CCC1","1CCCCCCCCCDDCCCCCCCCCCCC1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Reality Glitch 2", enemyCount: 7, map: ["111111111111111111111111","1CCCDDDCCCCCCCCCCCCCDDD1","1CCC1111CCCEEEEECC1111CC1","1CCC1111CCCEEEEECC1111CC1","1CCCDDDCCCCCCCCCCCCCDDD1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Reality Glitch 3", enemyCount: 8, map: ["111111111111111111111111","1A1A1A1A1A1A1A1A1A1A1A11","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCCCCCCDDDDDDDCCCCCCCCC1","1A1A1A1A1A1A1A1A1A1A1A11","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Reality Glitch 4", enemyCount: 9, map: ["111111111111111111111111","1CCCCCCCCCCCCCCCCCCCCCCC1","1CC11111111CCCEE1111111CC1","1CCCCCCCCCCCCCCDDCCCCCCC1","1CC11111111CCCEE1111111CC1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Reality Glitch 5", enemyCount: 10, map: ["111111111111111111111111","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCCC1111CCEEECC1111CCCC1","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Grand Pipis Domain", enemyCount: 1, boss: "GrandPipis", map: ["111111111111111111111111","133333333333333333333331","133333333333333333333331","133333333333333333333331","133333333333333333333331","133333333333333333333331","111111111111111111111111"] },
+                    { name: "Deep Reality 1", enemyCount: 8, map: ["111111111111111111111111","1CCCDDDCCCCCCCCCCCCCCDDD1","1CCCDDDCCCCCCCCCCCCCCDDD1","1CCCDDDCCCCCCCCCCCCCCDDD1","1CCCDDDCCCCCCCCCCCCCCDDD1","1CCCDDDCCCCCCCCCCCCCCDDD1","111111111111111111111111"] },
+                    { name: "Deep Reality 2", enemyCount: 9, map: ["111111111111111111111111","1CC11CC11CC11CC11CC11CC1","1CC11CC11CC11CC11CC11CC1","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCCEEEEECCCCCCCCCCCEECC1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Deep Reality 3", enemyCount: 10, map: ["111111111111111111111111","1CCCCCCCCCCCCCCCCCCCCCCC1","1CC11111111CCCCCC1111111CC1","1CCCCCCCCCCCCDDCCCCCCCCC1","1CC11111111CCCCCC1111111CC1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Deep Reality 4", enemyCount: 11, map: ["111111111111111111111111","1CCCCCCCCCC11CCCCCCCCCCC1","1CCCCCCCCCC11CCCCCCCCCCC1","1CCCCCCCCCC11CCCCCCCCCCC1","1CCCCCCCCCC11CCCCCCCCCCC1","1CCCCCCCCCC11CCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Deep Reality 5", enemyCount: 12, map: ["111111111111111111111111","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCC1111CCC1111CCC1111CCC1","1CCCCCCCCCCCCCCCCCCCCCCC1","1CCC1111CCC1111CCC1111CCC1","1CCCCCCCCCCCCCCCCCCCCCCC1","111111111111111111111111"] },
+                    { name: "Garden of Elias", enemyCount: 1, boss: "EliasentialGuard", map: ["111111111111111111111111","199999999999999999999991","199999999999999999999991","199999999999999999999991","199999999999999999999991","199999999999999999999991","111111111111111111111111"] },
+                    { name: "Final Stretch 1", enemyCount: 10, map: ["111111111111111111111111","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","111111111111111111111111"] },
+                    { name: "Final Stretch 2", enemyCount: 11, map: ["111111111111111111111111","100000000000000000000001","100111111111111111111001","100000000000000000000001","100111111111111111111001","100000000000000000000001","111111111111111111111111"] },
+                    { name: "The Secret Corridor", enemyCount: 12, hasSecret: true, map: ["111111111111111111111111","100000000000000000000001","100111111110001111111001","100000000000000000000001","100111111110001111111001","1000000000B0000000000001","111111111111111111111111"] },
+                    { name: "Final Stretch 4", enemyCount: 12, map: ["111111111111111111111111","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","111111111111111111111111"] },
+                    { name: "Final Stretch 5", enemyCount: 14, map: ["111111111111111111111111","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","111111111111111111111111"] },
+                    { name: "The Watercooler", enemyCount: 1, boss: "Watercooler", map: ["111111111111111111111111","133333333333333333333331","133333333333333333333331","133333333333333333333331","133333333333333333333331","133333333333333333333331","111111111111111111111111"] },
+                    { name: "Custom Level", enemyCount: 5, map: ["111111111111111111111111","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","100000000000000000000001","111111111111111111111111"] }
+                ]
+            }
+        };
+       
+        let mapLayout = [];
+       
+        // --- Utility Functions ---
+        function getDistance(a, b) {
+            return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+        }
+
+        function findValidSpawnPoint() {
+            let x, y, tileX, tileY, tileType;
+            const padding = TILE_SIZE;
+            let attempts = 0;
+            do {
+                x = Math.random() * (canvas.width - padding * 2) + padding;
+                y = Math.random() * (canvas.height - padding * 2) + padding;
+                tileX = Math.floor(x / TILE_SIZE);
+                tileY = Math.floor(y / TILE_SIZE);
+                tileType = (map[tileY] && map[tileY][tileX] !== undefined) ? map[tileY][tileX] : 1;
+                attempts++;
+                if (attempts > 100) return { x: TILE_SIZE * 2, y: TILE_SIZE * 2 };
+            } while (tileType === 1 || tileType === 4);
+            return { x, y };
+        }
+       
+        function showGUI(title, text, buttonText, callback) {
+            gameState = 'paused';
+            messageTitle.textContent = title;
+           
+            // Reset styles
+            messageText.className = "text-lg mb-8";
+           
+            if ((title === "You Win!" || title === "Game Over") && !isTestingLevel) {
+                 messageText.textContent = `${text} Your time: ${finalTime}`;
+            } else {
+                messageText.textContent = text;
+            }
+            messageButton.textContent = buttonText;
+            messageButton.onclick = callback;
+            guiMessage.classList.remove('hidden');
+        }
+       
+        function showDialogue(text) {
+            isDialogueOpen = true;
+            dialogueText.textContent = text;
+            dialogueBox.style.display = 'block';
+        }
+
+        function closeDialogue() {
+            isDialogueOpen = false;
+            dialogueBox.style.display = 'none';
+        }
+
+        function updateTimer() {
+            if (gameState !== 'playing') return;
+            const elapsed = Date.now() - startTime;
+            const minutes = String(Math.floor(elapsed / 60000)).padStart(2, '0');
+            const seconds = String(Math.floor((elapsed % 60000) / 1000)).padStart(2, '0');
+            const milliseconds = String(elapsed % 1000).padStart(3, '0');
+            finalTime = `${minutes}:${seconds}:${milliseconds}`;
+            timerUI.textContent = finalTime;
+        }
+
+        // --- Game Object Classes ---
+        class Player {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = TILE_SIZE;
+                this.maxHealth = 100;
+                this.health = 100;
+                this.baseSpeed = PLAYER_SPEED;
+                this.currentWeapon = 0;
+                this.lastAttackTime = 0;
+                this.isAttacking = false;
+                this.attackAnimTimeout = null;
+                this.attackAngle = 0;
+            }
+            draw() {
+                if (this.isAttacking) {
+                    const weapon = weapons[this.currentWeapon];
+                    ctx.save(); ctx.beginPath(); ctx.translate(this.x, this.y);
+                    ctx.rotate(this.attackAngle);
+                    ctx.fillStyle = colors.attack; ctx.globalAlpha = 0.6;
+                    ctx.arc(weapon.range / 2, 0, weapon.range / 2, -Math.PI/2.5, Math.PI/2.5);
+                    ctx.lineTo(0, 0); ctx.closePath(); ctx.fill(); ctx.restore();
+                }
+                if (this.health < this.maxHealth) {
+                    const barWidth = this.size; const barHeight = 6;
+                    const yOffset = this.size / 2 + 8;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                    ctx.strokeStyle = '#111';
+                    ctx.strokeRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                }
+                ctx.fillStyle = colors.player; ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🦆', this.x, this.y);
+            }
+            isColliding(x, y) {
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                const tileType = map[tileY] ? map[tileY][tileX] : 1;
+               
+                // Secret Door logic
+                if (tileType === 11 && currentChapter === 3 && !isTestingLevel) {
+                    loadSecretLevel();
+                    return true;
+                }
+                return tileType === 1 || tileType === 4;
+            }
+            update() {
+                let speed = this.baseSpeed;
+                if (weather.effect === 'speed') speed *= weather.value;
+                let vx = 0; let vy = 0;
+               
+                if (settings.move === 'arrowkeys') {
+                    if (keys['arrowup']) vy = -1;
+                    if (keys['arrowdown']) vy = 1;
+                    if (keys['arrowleft']) vx = -1;
+                    if (keys['arrowright']) vx = 1;
+                } else if (settings.move === 'wasd') {
+                    if (keys['w']) vy = -1;
+                    if (keys['s']) vy = 1;
+                    if (keys['a']) vx = -1;
+                    if (keys['d']) vx = 1;
+                }
+               
+                if (vx !== 0 && vy !== 0) {
+                    vx *= Math.SQRT1_2; vy *= Math.SQRT1_2;
+                }
+                const newX = this.x + vx * speed;
+                const newY = this.y + vy * speed;
+                if (!this.isColliding(newX, this.y)) this.x = newX;
+                if (!this.isColliding(this.x, newY)) this.y = newY;
+                this.x = Math.max(0, Math.min(canvas.width, this.x));
+                this.y = Math.max(0, Math.min(canvas.height, this.y));
+            }
+
+            performAttack(angle) {
+                const weapon = weapons[this.currentWeapon];
+                let cooldown = weapon.cooldown;
+                if (weather.effect === 'attackSpeed') cooldown *= weather.value;
+                const now = Date.now();
+                if (now - this.lastAttackTime < cooldown) return;
+               
+                this.lastAttackTime = now;
+                this.isAttacking = true;
+                clearTimeout(this.attackAnimTimeout);
+                this.attackAnimTimeout = setTimeout(() => this.isAttacking = false, 100);
+
+                this.attackAngle = angle;
+
+                const targets = bosses.concat(enemies);
+                targets.forEach(target => {
+                    const dist = getDistance(this, target);
+                    if (dist < weapon.range + target.size / 2) {
+                        const angleToTarget = Math.atan2(target.y - this.y, target.x - this.x);
+                        let angleDiff = Math.abs(this.attackAngle - angleToTarget);
+                        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+                       
+                        if (angleDiff < Math.PI / 2.5) {
+                            let damage = weapon.damage;
+                            if (weather.effect === 'damage') damage *= weather.value;
+                            target.takeDamage(damage);
+                        }
+                    }
+                });
+
+                // Check NPC interaction (Gaster Fight)
+                npcs.forEach((npc, index) => {
+                    const dist = getDistance(this, npc);
+                    if (dist < weapon.range + TILE_SIZE && npc.name === "Weather Duck Gaster") {
+                         // Trigger Boss Gaster
+                         npcs.splice(index, 1);
+                         bosses.push(new BossGaster(npc.x, npc.y));
+                         showDialogue("☼︎♏︎♋︎●︎●︎⍓︎✍︎ ✞︎♏︎❒︎⍓︎ ⬥︎♏︎●︎●︎📬︎");
+                    }
+                });
+            }
+
+            attack() {
+                const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+                this.performAttack(angle);
+            }
+
+            takeDamage(amount) {
+                if (weather.effect === 'defense') amount *= weather.value;
+                this.health -= Math.round(amount);
+                if(this.health <= 0) {
+                    this.health = 0;
+                    if (isTestingLevel) {
+                        showGUI("Test Over", "You were defeated.", "Return to Editor", enterEditorMode);
+                    } else {
+                        gameState = 'gameover';
+                        let deathMessage = currentChapter === 3 ? "You could not sustain reality." : (currentChapter === 2 ? "The EUROPE forces were too strong!" : "The IMT Lazarus forces were too strong!");
+                       
+                        // Check for Gaster
+                        const isGaster = bosses.some(b => b instanceof BossGaster);
+                        if (isGaster) {
+                            deathMessage = "GEEEEETTT DUNKED ON";
+                        }
+
+                        showGUI("Game Over", deathMessage, "Try Again", resetGame);
+                       
+                        if (isGaster) {
+                            messageText.classList.add('font-wingdings');
+                            messageText.classList.add('text-3xl');
+                        }
+                    }
+                }
+                updateUI();
+            }
+        }
+       
+        class Projectile {
+            constructor(x, y, angle, speed, damage, size, color, symbol) {
+                this.x = x; this.y = y;
+                this.angle = angle;
+                this.speed = speed;
+                this.damage = damage;
+                this.size = size;
+                this.color = color;
+                this.symbol = symbol;
+                this.markedForDeletion = false;
+            }
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+
+                if (getDistance(this, player) < player.size / 2) {
+                    player.takeDamage(this.damage);
+                    this.markedForDeletion = true;
+                }
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.symbol, this.x, this.y);
+            }
+            remove() {
+                // Handled by markedForDeletion in game loop
+            }
+        }
+
+        class Laser {
+            constructor(x, y, angle, damage, isIndicator) {
+                this.x = x; this.y = y;
+                this.angle = angle;
+                this.damage = damage;
+                this.isIndicator = isIndicator;
+                this.duration = isIndicator ? 40 : 15; // Frames
+                this.width = isIndicator ? 2 : 30;
+                this.color = isIndicator ? 'rgba(255, 0, 0, 0.5)' : 'white';
+                this.markedForDeletion = false;
+                this.hasHit = false;
+            }
+
+            update() {
+                this.duration--;
+                if (this.duration <= 0) {
+                    this.markedForDeletion = true;
+                    if (this.isIndicator) {
+                        // Spawn real laser
+                        projectiles.push(new Laser(this.x, this.y, this.angle, this.damage, false));
+                    }
+                }
+
+                if (!this.isIndicator && !this.hasHit) {
+                    // Collision Detection Line to Circle
+                    let dx = player.x - this.x;
+                    let dy = player.y - this.y;
+                   
+                    // Rotate point to align with laser axis
+                    let rx = dx * Math.cos(-this.angle) - dy * Math.sin(-this.angle);
+                    let ry = dx * Math.sin(-this.angle) + dy * Math.cos(-this.angle);
+
+                    // Check bounds
+                    // Laser is effectively infinite in +X direction relative to its angle, and has width in Y
+                    if (rx > 0 && Math.abs(ry) < this.width / 2 + player.size/2) {
+                        player.takeDamage(this.damage);
+                        this.hasHit = true;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+               
+                // Draw Beam
+                ctx.fillStyle = this.color;
+                ctx.fillRect(0, -this.width/2, canvas.width * 2, this.width);
+               
+                // Draw Blaster Head
+                if (this.isIndicator || !this.hasHit) { // Keep drawing head
+                    ctx.fillStyle = 'white';
+                    ctx.font = "30px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText("☠︎", 0, 0);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        class NPC {
+            constructor(x, y, name, dialogue) {
+                this.x = x; this.y = y; this.name = name; this.dialogue = dialogue;
+            }
+            draw() {
+                ctx.fillStyle = 'yellow';
+                ctx.font = `${TILE_SIZE}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('🦆', this.x, this.y);
+                ctx.font = '10px sans-serif';
+                ctx.fillStyle = 'white';
+                ctx.fillText(this.name, this.x, this.y - 25);
+            }
+            update() {
+                 if (getDistance(this, player) < TILE_SIZE * 2) {
+                    nearNPC = this;
+                }
+            }
+            // No checkInteraction here, moved to E key
+            checkInteraction() {}
+        }
+       
+        class Item {
+             constructor(x, y, type) {
+                 this.x = x; this.y = y; this.type = type;
+             }
+             draw() {
+                 ctx.fillStyle = 'orange';
+                 ctx.font = `${TILE_SIZE}px sans-serif`;
+                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                 ctx.fillText('🗡️', this.x, this.y);
+             }
+             update() {
+                 if (getDistance(this, player) < TILE_SIZE) {
+                     if (this.type === 'RoaringSword') {
+                         weapons.push(weaponsConfig.roaringSword);
+                         setupWeapons();
+                         showDialogue("You found the legendary ROARING SWORD! Its power courses through you.");
+                         items = items.filter(i => i !== this);
+                     }
+                 }
+             }
+        }
+
+        class Boss {
+             constructor(x, y, size, health, symbol, color) {
+                this.x = x; this.y = y; this.size = size;
+                this.maxHealth = health; this.health = health;
+                this.speed = 1;
+                this.aggroRange = TILE_SIZE * 20;
+                this.symbol = symbol;
+                this.color = color;  
+                this.isStomping = false;
+                this.stompAnimTimer = 0;
+            }
+            draw() {
+                let currentSize = this.size;
+                if (this.isStomping && this.stompAnimTimer > 0) {
+                    const animDuration = 500;
+                    const progress = (animDuration - this.stompAnimTimer) / animDuration;
+                    const scale = 1 + Math.sin(progress * Math.PI) * 0.5;
+                    currentSize *= scale;
+                }
+
+                ctx.fillStyle = this.color || colors.boss;
+                ctx.font = `${currentSize}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.symbol, this.x, this.y);
+               
+                const barWidth = this.size * 1.5; const barHeight = 15;
+                const yOffset = this.size / 2 + 15;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+            }
+            isColliding(x, y) {
+                 const tileX = Math.floor(x / TILE_SIZE);
+                 const tileY = Math.floor(y / TILE_SIZE);
+                 const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                 return tileType === 1 || tileType === 4;
+            }
+            baseUpdate() {
+                const dist = getDistance(this, player);
+                if (dist > player.size) {
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    const newX = this.x + Math.cos(angle) * this.speed;
+                    const newY = this.y + Math.sin(angle) * this.speed;
+                    if (!this.isColliding(newX, this.y)) this.x = newX;
+                    if (!this.isColliding(this.x, newY)) this.y = newY;
+                }
+            }
+             takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    bosses = bosses.filter(b => b !== this);
+                    checkLevelComplete();
+                }
+            }
+            update() {
+                this.baseUpdate();
+            }
+        }
+
+        class BossLazarus extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 3, 500, '🔱', colors.boss);
+                this.attackCooldown = 2000; this.lastAttackTime = Date.now();
+            }
+            update() {
+                this.baseUpdate();
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                    projectiles.push(new Projectile(this.x, this.y, angleToPlayer, 4, 10, TILE_SIZE * 0.5, colors.projectile, 'L'));
+                    this.lastAttackTime = now;
+                }
+            }
+        }
+       
+        class BossEiffelTower extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 4, 800, '🗼', colors.bossEurope);
+                this.attackCooldown = 1500; this.lastAttackTime = Date.now();
+                this.stompCooldown = 2000; this.lastStompTime = Date.now();
+                this.spawnEnemyCooldown = 8000;
+                this.lastSpawnEnemyTime = Date.now();
+                this.speed = 1.00;
+            }
+            update() {
+                this.baseUpdate();
+                if (this.isStomping) {
+                    this.stompAnimTimer -= 16.67;
+                    if (this.stompAnimTimer <= 0) {
+                        this.isStomping = false;
+                    }
+                }
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                    projectiles.push(new Projectile(this.x, this.y, angleToPlayer, 7, 15, TILE_SIZE * 0.3, colors.projectileEurope, '⚡'));
+                    projectiles.push(new Projectile(this.x, this.y, -angleToPlayer, 7, 15, TILE_SIZE * 0.3, colors.projectileEurope, '⚡'));
+
+                    this.lastAttackTime = now;
+                }
+                if (now - this.lastStompTime > this.stompCooldown) {
+                    this.isStomping = true;
+                    this.stompAnimTimer = 500;
+                    if (getDistance(this, player) < TILE_SIZE * 4) {
+                        player.takeDamage(25);
+                    }
+                    this.lastStompTime = now;
+                }
+               
+                if (now - this.lastSpawnEnemyTime > this.spawnEnemyCooldown) {
+                    const stats = enemyStats[chapterData[currentChapter].enemyClass] || enemyStats["Lazarus"];
+                    const spawn1 = {x: this.x - TILE_SIZE * 2, y: this.y};
+                    const spawn2 = {x: this.x + TILE_SIZE * 2, y: this.y};
+
+                    if (!this.isColliding(spawn1.x, spawn1.y)) {
+                        enemies.push(new Enemy(spawn1.x, spawn1.y, stats));
+                    }
+                    if (!this.isColliding(spawn2.x, spawn2.y)) {
+                        enemies.push(new Enemy(spawn2.x, spawn2.y, stats));
+                    }
+                   
+                    this.lastSpawnEnemyTime = now;
+                }
+            }
+        }
+
+        class BossBigBen extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 3.5, 700, '🕰️', colors.bossEurope);
+                this.attackCooldown = 1500; this.lastAttackTime = Date.now();
+                this.ringCooldown = 6000; this.lastRingTime = Date.now();
+                this.speed = 0.6;
+                this.projectileStartAngle = 0;
+            }
+            update() {
+                this.baseUpdate();
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    for(let i=0; i<6; i++) {
+                        const angle = this.projectileStartAngle + (Math.PI / 3) * i;
+                        projectiles.push(new Projectile(this.x, this.y, angle, 3, 1, TILE_SIZE * 0.6, colors.projectileEurope, '⚙️'));
+                    }
+                    this.projectileStartAngle += Math.PI / 12;
+                    this.lastAttackTime = now;
+                }
+                if (now - this.lastRingTime > this.ringCooldown) {
+                    for(let i=0; i<8; i++) {
+                        const angle = this.projectileStartAngle + (Math.PI / 4) * i;
+                        projectiles.push(new Projectile(this.x, this.y, angle, 3, 1, TILE_SIZE * 0.6, colors.projectileEurope, '⚙️'));
+                    }
+                   
+                    if (now - this.ringCooldown - this.lastRingTime > 1000) {this.lastRingTime = now}
+                    this.projectileStartAngle += Math.PI / 8;
+                   
+                }
+            }
+        }
+       
+        class BossGrandPipis extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 4, 1000, '🥚', colors.bossPipis);
+                this.attackCooldown = 1200; this.lastAttackTime = Date.now();
+                this.speed = 0.8;
+            }
+            update() {
+                this.baseUpdate();
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                    projectiles.push(new Projectile(this.x, this.y, angleToPlayer, 6, 15, TILE_SIZE * 0.5, colors.bossPipis, '0'));
+                    projectiles.push(new Projectile(this.x, this.y, angleToPlayer + 0.2, 6, 15, TILE_SIZE * 0.5, colors.bossPipis, '0'));
+                    projectiles.push(new Projectile(this.x, this.y, angleToPlayer - 0.2, 6, 15, TILE_SIZE * 0.5, colors.bossPipis, '0'));
+                    this.lastAttackTime = now;
+                }
+            }
+        }
+       
+        class BossEliasentialGuard extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 3, 1200, '🌿', colors.bossPlant);
+                this.attackCooldown = 2000; this.lastAttackTime = Date.now();
+                this.speed = 0.5;
+            }
+            update() {
+                this.baseUpdate();
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                     for(let i=0; i<8; i++) {
+                        const angle = (Math.PI * 2 / 8) * i;
+                        projectiles.push(new Projectile(this.x, this.y, angle, 4, 12, TILE_SIZE * 0.4, colors.bossPlant, '🍃'));
+                    }
+                    this.lastAttackTime = now;
+                }
+            }
+        }
+
+        class BossRoaringWatercooler extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 5, 2500, '🚰', colors.bossWater);
+                this.lastRainTime = Date.now(); this.rainCooldown = 500;
+                this.lastHomingTime = Date.now(); this.homingCooldown = 3000;
+                this.lastDelayTime = Date.now(); this.delayCooldown = 6000;
+                this.speed = 0.4;
+            }
+            update() {
+                this.baseUpdate();
+                const now = Date.now();
+               
+                if (now - this.lastRainTime > this.rainCooldown) {
+                    const rainX = Math.random() * canvas.width;
+                    projectiles.push(new Projectile(rainX, 0, Math.PI/2, 5, 10, TILE_SIZE * 0.3, colors.bossWater, '💧'));
+                    this.lastRainTime = now;
+                }
+               
+                if (now - this.lastHomingTime > this.homingCooldown) {
+                     const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                     projectiles.push(new Projectile(this.x, this.y, angle, 6, 15, TILE_SIZE * 0.4, colors.bossWater, '🔵'));
+                     this.lastHomingTime = now;
+                }
+               
+                if (now - this.lastDelayTime > this.delayCooldown) {
+                     for (let i=0; i<4; i++) {
+                         let angle = (Math.PI/2)*i;
+                         let sx = player.x + Math.cos(angle) * 200;
+                         let sy = player.y + Math.sin(angle) * 200;
+                         let aimAngle = Math.atan2(player.y - sy, player.x - sx);
+                         projectiles.push(new Projectile(sx, sy, aimAngle, 8, 20, TILE_SIZE*0.4, 'white', '⚪'));
+                     }
+                     this.lastDelayTime = now;
+                }
+            }
+        }
+
+        // New Secret Boss
+        class BossGaster extends Boss {
+            constructor(x, y) {
+                super(x, y, TILE_SIZE * 3, 9999, '☠︎', colors.bossGaster);
+               
+                // Phase 1 Timers - FASTER COOLDOWNS
+                this.lastHandTime = Date.now(); this.handCooldown = 1500;
+                this.lastBlasterTime = Date.now(); this.blasterCooldown = 800;
+                this.lastTeleportTime = Date.now(); this.teleportCooldown = 2500;
+
+                // Phase 2+ Timers
+                this.lastRainTime = Date.now(); this.rainCooldown = 60; // Very heavy rain
+                this.lastPhase2BlasterTime = Date.now(); this.phase2BlasterCooldown = 2000; // New 90-degree blasters
+               
+                this.lastGridTime = Date.now(); this.gridCooldown = 900;
+                this.lastSpiralTime = Date.now(); this.spiralCooldown = 40; // Slower spiral
+                this.spiralAngle = 0;
+
+                this.speed = 0; // Teleports
+                this.phase = 1;
+            }
+            update() {
+                const now = Date.now();
+                const hpPercent = this.health / this.maxHealth;
+               
+                // Determine Phase
+                if (hpPercent <= 0.2) this.phase = 5;      // FINAL FRENZY
+                else if (hpPercent <= 0.4) this.phase = 4; // SPIRAL CHAOS
+                else if (hpPercent <= 0.6) this.phase = 3; // REALITY GRID
+                else if (hpPercent <= 0.8) this.phase = 2; // VOID RAIN
+                else this.phase = 1;                       // BASE FORM
+
+                // --- Teleport Logic ---
+                let currentTeleportCooldown = this.teleportCooldown;
+                if (this.phase === 4) currentTeleportCooldown = 99999999; // Stationary during spiral
+                if (this.phase === 5) currentTeleportCooldown = 1000; // Nerfed: Slower teleport in frenzy (was 600)
+
+                if (now - this.lastTeleportTime > currentTeleportCooldown) {
+                     const teleportX = Math.random() * (canvas.width - TILE_SIZE * 4) + TILE_SIZE * 2;
+                     const teleportY = Math.random() * (canvas.height - TILE_SIZE * 4) + TILE_SIZE * 2;
+                     if (!this.isColliding(teleportX, teleportY)) {
+                         this.x = teleportX;
+                         this.y = teleportY;
+                         
+                         // Phase 5 Extra: Burst on teleport
+                         if (this.phase === 5) {
+                            // Nerfed: 10 bullets instead of 16
+                            for(let i=0; i<10; i++) {
+                                const angle = (Math.PI * 2 / 10) * i;
+                                // Lower damage (10), higher speed (10)
+                                projectiles.push(new Projectile(this.x, this.y, angle, 10, 10, TILE_SIZE * 0.4, 'red', '♦'));
+                            }
+                         }
+                     }
+                     this.lastTeleportTime = now;
+                }
+               
+                // --- Phase 1: Gaster Blasters & Void Hands ---
+                if (this.phase === 1 || this.phase === 5) {
+                    if (now - this.lastBlasterTime > this.blasterCooldown) {
+                        const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                        // Use Laser indicator - Lower damage (12)
+                        projectiles.push(new Laser(this.x, this.y, angleToPlayer, 12, true));
+                        this.lastBlasterTime = now;
+                    }
+                    if (now - this.lastHandTime > this.handCooldown) {
+                        // HARDER PATTERN: 8 Hands instead of 6
+                        for(let i=0; i<8; i++) {
+                            const angle = (Math.PI * 2 / 8) * i;
+                            const spawnX = player.x + Math.cos(angle) * 350;
+                            const spawnY = player.y + Math.sin(angle) * 350;
+                            const aimAngle = Math.atan2(player.y - spawnY, player.x - spawnX);
+                            // Faster hands (Speed 7), Lower damage (10)
+                            projectiles.push(new Projectile(spawnX, spawnY, aimAngle, 7, 10, TILE_SIZE * 0.4, 'white', '✋'));
+                        }
+                        this.lastHandTime = now;
+                    }
+                }
+
+                // --- Phase 2: Void Rain + 90 Degree Blasters ---
+                if (this.phase === 2 || this.phase === 5) {
+                    if (now - this.lastRainTime > this.rainCooldown) {
+                        const rainX = Math.random() * canvas.width;
+                        // Faster rain (Speed 12), Lower damage (8)
+                        projectiles.push(new Projectile(rainX, 0, Math.PI/2, 12, 8, TILE_SIZE * 0.3, '#666', '|'));
+                        this.lastRainTime = now;
+                    }
+                    // NEW: 3 Laser Cone (90 deg total, facing player)
+                    if (now - this.lastPhase2BlasterTime > this.phase2BlasterCooldown) {
+                        const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                       
+                        // Bisector (facing player)
+                        projectiles.push(new Laser(this.x, this.y, angleToPlayer, 12, true));
+                       
+                        // -45 degrees (Math.PI/4)
+                        projectiles.push(new Laser(this.x, this.y, angleToPlayer - Math.PI/4, 12, true));
+                       
+                        // +45 degrees (Math.PI/4)
+                        projectiles.push(new Laser(this.x, this.y, angleToPlayer + Math.PI/4, 12, true));
+                       
+                        this.lastPhase2BlasterTime = now;
+                    }
+                }
+
+                // --- Phase 3: Reality Grid (Cross Lasers) ---
+                if (this.phase === 3 || this.phase === 5) {
+                    if (now - this.lastGridTime > this.gridCooldown) {
+                        // Horizontal Beam - Damage 12
+                        projectiles.push(new Laser(0, player.y, 0, 12, true));
+                        // Vertical Beam - Damage 12
+                        projectiles.push(new Laser(player.x, 0, Math.PI/2, 12, true));
+                        this.lastGridTime = now;
+                    }
+                }
+
+                // --- Phase 4: Spiral Chaos (Bullet Hell) ---
+                if (this.phase === 4) {
+                    // Force boss to center
+                    this.x = canvas.width / 2;
+                    this.y = canvas.height / 2;
+                   
+                    if (now - this.lastSpiralTime > this.spiralCooldown) {
+                         // Faster bullets (Speed 9), Lower damage (8)
+                         projectiles.push(new Projectile(this.x, this.y, this.spiralAngle, 9, 8, TILE_SIZE * 0.4, 'red', '@'));
+                         projectiles.push(new Projectile(this.x, this.y, this.spiralAngle + Math.PI, 9, 8, TILE_SIZE * 0.4, 'red', '@'));
+                         this.spiralAngle += 0.15; // Slower spin
+                         this.lastSpiralTime = now;
+                    }
+                }
+            }
+        }
+
+        // --- Base Enemy Class ---
+        class Enemy {
+            constructor(x, y, stats) {
+                this.x = x; this.y = y;
+                this.size = TILE_SIZE * 0.8;
+                this.maxHealth = stats.health;
+                this.health = stats.health;
+                this.speed = stats.speed;
+                this.damage = stats.damage;
+                this.symbol = stats.symbol;
+                this.color = stats.color;
+                this.type = stats.type;
+                this.attackCooldown = 1000;
+                this.lastAttackTime = 0;
+                this.aggroRange = TILE_SIZE * 8;
+               
+                if (this.type === 'sliding') {
+                    this.vx = (Math.random() - 0.5) * this.speed * 3;
+                    this.vy = (Math.random() - 0.5) * this.speed * 3;
+                }
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(this.symbol, this.x, this.y);
+                if (this.health < this.maxHealth) {
+                    const barWidth = this.size; const barHeight = 5;
+                    const yOffset = this.size / 2 + 5;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                }
+            }
+            isColliding(x, y) {
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                return tileType === 1 || tileType === 4;
+            }
+            update() {
+                const dist = getDistance(this, player);
+               
+                if (this.type === 'ranged') {
+                    if (dist < this.aggroRange) {
+                        const now = Date.now();
+                        if (now - this.lastAttackTime > 1500) {
+                             const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                             projectiles.push(new Projectile(this.x, this.y, angle, 5, this.damage, TILE_SIZE * 0.3, this.color, '*'));
+                             this.lastAttackTime = now;
+                        }
+                       
+                        if (dist < TILE_SIZE * 4) {
+                             const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                             // Calculate desired retreat position
+                             const retreatX = this.x - Math.cos(angle) * this.speed;
+                             const retreatY = this.y - Math.sin(angle) * this.speed;
+                             
+                             // Check collisions before moving
+                             if (!this.isColliding(retreatX, this.y)) this.x = retreatX;
+                             if (!this.isColliding(this.x, retreatY)) this.y = retreatY;
+                        }
+                    }
+                } else if (this.type === 'sliding') {
+                     let nextX = this.x + this.vx;
+                     let nextY = this.y + this.vy;
+                     if (this.isColliding(nextX, this.y)) this.vx *= -1;
+                     if (this.isColliding(this.x, nextY)) this.vy *= -1;
+                     this.x += this.vx;
+                     this.y += this.vy;
+                } else { // Normal
+                    if (dist < this.aggroRange && dist > player.size / 2) {
+                        const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                        const newX = this.x + Math.cos(angle) * this.speed;
+                        const newY = this.y + Math.sin(angle) * this.speed;
+                        if (!this.isColliding(newX, this.y)) this.x = newX;
+                        if (!this.isColliding(this.x, newY)) this.y = newY;
+                    }
+                }
+               
+                if (dist < player.size / 2 + 5) {
+                     const now = Date.now();
+                     if (now - this.lastAttackTime > this.attackCooldown) {
+                         player.takeDamage(this.damage);
+                         this.lastAttackTime = now;
+                     }
+                }
+            }
+            takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    enemies = enemies.filter(e => e !== this);
+                    checkLevelComplete();
+                }
+            }
+        }
+       
+        const enemyStats = {
+            "Lazarus": { health: 30, speed: 1.5, damage: 5, symbol: 'L', color: colors.enemy, type: 'normal' },
+            "Europe": { health: 50, speed: 1.8, damage: 8, symbol: 'E', color: colors.enemyEurope, type: 'normal' },
+            "Real": { health: 80, speed: 2.5, damage: 12, symbol: 'R', color: colors.enemyR, type: 'normal' }, // FIXED: Changed to 'normal'
+            "RealRanged": { health: 60, speed: 1.5, damage: 10, symbol: 'ℝ', color: colors.enemyRealR, type: 'ranged' } // Color fixed in 'colors' const
+        };
+
+        // --- Game Setup and Loop ---
+        function loadLevel() {
+            const chap = chapterData[currentChapter];
+            const level = chap.levels[currentLevel];
+            // Fix: Parse Hex to support tiles 10-15
+            map = level.map.map(row => row.split('').map(c => parseInt(c, 16)));
+           
+            player = player || new Player(0,0);
+           
+            if (level.type !== 'hub') {
+                const spawn = findValidSpawnPoint();
+                player.x = spawn.x;
+                player.y = spawn.y;
+            } else {
+                player.x = TILE_SIZE * 3; player.y = TILE_SIZE * 3;
+            }
+           
+            enemies = [];
+            projectiles = [];
+            bosses = [];
+            npcs = [];
+            items = [];
+            nearNPC = null;
+
+            if (level.type === 'hub') {
+                 npcs.push(new NPC(TILE_SIZE*5, TILE_SIZE*3, "Guide Duck", "Welcome to the Sanctuary. You are safe here."));
+                 npcs.push(new NPC(TILE_SIZE*8, TILE_SIZE*4, "Old Duck", "The Real World is unstable. Beware the R."));
+            }
+            else if (level.hasSecret === undefined && level.boss === undefined) {
+                const rCount = Math.floor(level.enemyCount / 2);
+                const rrCount = level.enemyCount - rCount;
+               
+                if (chap.enemyClass === "Real") {
+                    for(let i=0; i<rCount; i++) {
+                         const s = findValidSpawnPoint();
+                         enemies.push(new Enemy(s.x, s.y, enemyStats["Real"]));
+                    }
+                    for(let i=0; i<rrCount; i++) {
+                         const s = findValidSpawnPoint();
+                         enemies.push(new Enemy(s.x, s.y, enemyStats["RealRanged"]));
+                    }
+                } else {
+                     const enemyCount = level.enemyCount;
+                     const stats = enemyStats[chap.enemyClass] || enemyStats["Lazarus"];
+                     for (let i = 0; i < enemyCount; i++) {
+                        const spawnPoint = findValidSpawnPoint();
+                        enemies.push(new Enemy(spawnPoint.x, spawnPoint.y, stats));
+                    }
+                }
+            }
+            else if (level.boss) {
+                const spawnPoint = {x: (map[0].length / 2) * TILE_SIZE, y: (map.length / 2) * TILE_SIZE};
+                if (level.boss === "Lazarus") { bosses.push(new BossLazarus(spawnPoint.x, spawnPoint.y)); }
+                else if (level.boss === "BigBen") { bosses.push(new BossBigBen(spawnPoint.x, spawnPoint.y)); }
+                else if (level.boss === "EiffelTower") { bosses.push(new BossEiffelTower(spawnPoint.x, spawnPoint.y)); }
+                else if (level.boss === "GrandPipis") { bosses.push(new BossGrandPipis(spawnPoint.x, spawnPoint.y)); }
+                else if (level.boss === "EliasentialGuard") { bosses.push(new BossEliasentialGuard(spawnPoint.x, spawnPoint.y)); }
+                else if (level.boss === "Watercooler") { bosses.push(new BossRoaringWatercooler(spawnPoint.x, spawnPoint.y)); }
+            } else if (level.hasSecret) {
+                 const s = findValidSpawnPoint();
+                 enemies.push(new Enemy(s.x, s.y, enemyStats["Real"]));
+            }
+            updateUI();
+        }
+       
+        function loadSecretLevel() {
+            map = [
+                "1111111111111111",
+                "1333333333333331",
+                "1333333333333331",
+                "1333333333333331",
+                "1333333333333331",
+                "1333333333333331",
+                "1333333333333331",
+                "1333333333333331",
+                "1111111111111111"
+            ].map(row => row.split('').map(c => parseInt(c, 16)));
+            player.x = TILE_SIZE * 2; player.y = TILE_SIZE * 3;
+            enemies = [];
+            const gasterX = (map[0].length / 2) * TILE_SIZE;
+            const gasterY = (map.length / 2) * TILE_SIZE;
+            npcs = [new NPC(gasterX, gasterY, "Weather Duck Gaster", "✌︎●︎●︎ ⍓︎□︎◆︎❒︎ ⧫︎♏︎⬧︎⧫︎⬧︎ ♒︎♋︎❖︎♏︎ ●︎♏︎♎︎ ⧫︎□︎ ⧫︎♒︎♓︎⬧︎📬︎")];
+            items = [new Item(TILE_SIZE*7, TILE_SIZE*3, 'RoaringSword')];
+            nearNPC = null;
+        }
+
+        function checkLevelComplete() {
+            if (gameState !== 'playing') return;
+           
+            const levelCleared = enemies.length === 0 && bosses.length === 0;
+            const chap = chapterData[currentChapter];
+            const level = chap.levels[currentLevel];
+
+            // Hub Exit Logic
+            if (level.type === 'hub' && player.x > canvas.width - TILE_SIZE * 2) {
+                 currentLevel++;
+                 loadLevel();
+                 return;
+            }
+
+            if (levelCleared && level.type !== 'hub') {
+                if (isTestingLevel) {
+                    showGUI("Test Complete!", "You defeated all the test enemies.", "Return to Editor", enterEditorMode);
+                    return;
+                }
+               
+                if (currentLevel < chap.levels.length - 2) {
+                    gameState = 'levelup';
+                    showGUI("Level Complete!", `You cleared ${chap.levels[currentLevel].name}.`, "Next Level", () => {
+                        currentLevel++;
+                        loadLevel();
+                        guiMessage.classList.add('hidden');
+                        gameState = 'playing';
+                    });
+                } else {
+                    gameState = 'gameover';
+                    const winMessage = currentChapter === 3 ? "You have sustained REALITY. The Duck is proud." : "Victory!";
+                    showGUI("You Win!", winMessage, "Play Again", resetGame);
+                }
+            }
+        }
+       
+        function skipLevel() {
+            if (gameState !== 'playing' || isTestingLevel) return;
+
+            const gaster = bosses.find(b => b instanceof BossGaster);
+            if (gaster) {
+                const pct = gaster.health / gaster.maxHealth;
+                if (pct > 0.801) gaster.health = gaster.maxHealth * 0.8;
+                else if (pct > 0.601) gaster.health = gaster.maxHealth * 0.6;
+                else if (pct > 0.401) gaster.health = gaster.maxHealth * 0.4;
+                else if (pct > 0.201) gaster.health = gaster.maxHealth * 0.2;
+                else gaster.health = 0;
+               
+                if (gaster.health <= 0) {
+                    gaster.takeDamage(0);
+                }
+                updateUI();
+                return;
+            }
+
+            const chap = chapterData[currentChapter];
+           
+            if (currentLevel < chap.levels.length - 2) {
+                currentLevel++;
+                loadLevel();
+            } else {
+                gameState = 'gameover';
+                const winMessage = currentChapter === 3 ? "You have sustained REALITY. The Duck is proud." : (currentChapter === 2 ? "You have defeated the EUROPE conspiracy!" : "You have defeated the IMT Lazarus army!");
+                showGUI("You Win!", winMessage, "Play Again", resetGame);
+            }
+        }
+
+        function startGame(isTest = false) {
+            isTestingLevel = isTest;
+            gameState = 'playing';
+            guiMenuCh1.classList.add('hidden');
+            guiMenuCh2.classList.add('hidden');
+            guiMenuCh3.classList.add('hidden');
+            guiEditor.classList.add('hidden');
+            guiPause.classList.add('hidden');
+            guiSettings.classList.add('hidden');
+            uiPanel.classList.remove('hidden');
+           
+            player = new Player(TILE_SIZE * 2, TILE_SIZE * 2);
+
+            if (currentChapter === 3) {
+                player.maxHealth = 500;
+                player.health = 500;
+                if (!isTest) {
+                    cutsceneOverlay.classList.remove('hidden');
+                    cutsceneOverlay.style.opacity = 1;
+                    cutsceneText.textContent = "Wake up... EUROPE and IMT Lazarus were merely simulations. Tests of your resolve. Now, you must face the Real World.";
+                    setTimeout(() => {
+                        cutsceneOverlay.style.opacity = 0;
+                        setTimeout(() => cutsceneOverlay.classList.add('hidden'), 2000);
+                    }, 5000);
+                }
+            } else if (currentChapter === 2) {
+                player.maxHealth = 350;
+                player.health = 350;
+            } else {
+                player.maxHealth = 100;
+                player.health = 100;
+            }
+
+            weapons = [...chapterData[currentChapter].weapons];
+           
+            if (!isTest) {
+                startTime = Date.now();
+                timerUI.classList.remove('hidden');
+            } else {
+                timerUI.classList.add('hidden');
+            }
+           
+            currentLevel = 0;
+            setupWeather();
+            setupWeapons();
+            loadLevel();
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+       
+        function resetGame() {
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(weatherInterval);
+            currentLevel = 0;
+            guiMessage.classList.add('hidden');
+            guiPause.classList.add('hidden');
+            startGame();
+        }
+       
+        // --- Editor Functions ---
+        function enterEditorMode() {
+            isTestingLevel = false;
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameState = 'editor';
+           
+            guiMenuCh1.classList.add('hidden');
+            guiMenuCh2.classList.add('hidden');
+            guiMenuCh3.classList.add('hidden');
+            guiMessage.classList.add('hidden');
+            uiPanel.classList.add('hidden');
+            guiPause.classList.add('hidden');
+            guiSettings.classList.add('hidden');
+
+            guiEditor.classList.remove('hidden');
+           
+            const chap = chapterData[currentChapter];
+            const customLevelIndex = chap.levels.length - 1;
+            map = chap.levels[customLevelIndex].map.map(row => row.split('').map(c => parseInt(c, 16)));
+           
+            gameLoopId = requestAnimationFrame(editorLoop);
+        }
+       
+        function setupEditor() {
+            tilePalette.innerHTML = '';
+            Object.entries(colors.tiles).forEach(([id, color]) => {
+                const tileDiv = document.createElement('div');
+                tileDiv.className = 'tile-palette-item';
+                tileDiv.style.backgroundColor = color;
+                tileDiv.dataset.tileId = id;
+                if (id == editorBrush) tileDiv.classList.add('selected');
+                tileDiv.onclick = () => {
+                    editorBrush = parseInt(id);
+                    document.querySelectorAll('.tile-palette-item').forEach(d => d.classList.remove('selected'));
+                    tileDiv.classList.add('selected');
+                };
+                tilePalette.appendChild(tileDiv);
+            });
+        }
+       
+        function paintTile(e, isRightClick = false) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const tileX = Math.floor(mouseX / TILE_SIZE);
+            const tileY = Math.floor(mouseY / TILE_SIZE);
+
+            if (map[tileY] && map[tileY][tileX] !== undefined) {
+                if(tileX > 0 && tileX < map[0].length-1 && tileY > 0 && tileY < map.length -1){
+                    map[tileY][tileX] = isRightClick ? 0 : editorBrush;
+                }
+            }
+        }
+       
+        function editorLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawMap();
+            gameLoopId = requestAnimationFrame(editorLoop);
+        }
+
+        // --- Pause Functions ---
+        function pauseGame() {
+            if (gameState !== 'playing') return;
+            gameState = 'paused';
+            guiPause.classList.remove('hidden');
+        }
+
+        function resumeGame() {
+            if (gameState !== 'paused') return;
+            gameState = 'playing';
+            guiPause.classList.add('hidden');
+            guiMessage.classList.add('hidden');
+        }
+
+        function returnToMenu() {
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(weatherInterval);
+            guiPause.classList.add('hidden');
+            uiPanel.classList.add('hidden');
+            guiMessage.classList.add('hidden');
+            guiEditor.classList.add('hidden');
+            guiSettings.classList.add('hidden');
+           
+            if (currentChapter === 1) {
+                guiMenuCh1.classList.remove('hidden');
+                gameState = 'menu-ch1';
+            } else if (currentChapter === 2) {
+                guiMenuCh2.classList.remove('hidden');
+                gameState = 'menu-ch2';
+            } else {
+                guiMenuCh3.classList.remove('hidden');
+                gameState = 'menu-ch3';
+            }
+        }
+
+        function updateUI() {
+            if (!player) return;
+            healthUI.textContent = player.health;
+            levelUI.textContent = isTestingLevel ? "Test" : currentLevel + 1;
+
+            if (bosses.length > 0) {
+                const boss = bosses[0];
+                enemiesLabelUI.textContent = "Boss Health:";
+                enemiesLeftUI.textContent = `${boss.health}/${boss.maxHealth}`;
+                enemiesLeftUI.className = 'text-purple-400';
+            } else {
+                enemiesLabelUI.textContent = "Enemies:";
+                enemiesLeftUI.textContent = enemies.length;
+                enemiesLeftUI.className = 'text-red-400';
+            }
+
+            weatherUI.textContent = weather.name;
+            weatherUI.style.color = weather.color;
+        }
+
+        function setupWeather() {
+            let currentTimer = 20;
+            weather = weatherTypes[0];
+            weatherTimerUI.textContent = currentTimer;
+            if(weatherInterval) clearInterval(weatherInterval);
+            weatherInterval = setInterval(() => {
+                if (gameState !== 'playing') return;
+                currentTimer--;
+                if (currentTimer <= 0) {
+                    currentTimer = 20;
+                    const newIndex = Math.floor(Math.random() * weatherTypes.length);
+                    weather = weatherTypes[newIndex];
+                    updateUI();
+                }
+                weatherTimerUI.textContent = currentTimer;
+            }, 1000);
+        }
+       
+        function setupWeapons() {
+            weaponSelectUI.innerHTML = '';
+            weapons.forEach((weapon, index) => {
+                const btn = document.createElement('button');
+                btn.className = `weapon-btn p-2 rounded`;
+                btn.textContent = `${weapon.name} (${weapon.damage} Dmg)`;
+                btn.onclick = () => {
+                    player.currentWeapon = index;
+                    document.querySelectorAll('.weapon-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+                weaponSelectUI.appendChild(btn);
+            });
+            if (weaponSelectUI.children[0]) weaponSelectUI.children[0].classList.add('active');
+        }
+
+        function drawMap() {
+            for (let y = 0; y < map.length; y++) {
+                for (let x = 0; x < map[y].length; x++) {
+                    ctx.fillStyle = colors.tiles[map[y][x]] || 'black';
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+       
+        function gameLoop() {
+            if (gameState === 'playing') {
+                player.update();
+                enemies.forEach(enemy => enemy.update());
+                bosses.forEach(boss => boss.update());
+               
+                nearNPC = null;
+                npcs.forEach(npc => npc.update());
+                if (nearNPC) {
+                    interactionPrompt.style.display = 'block';
+                } else {
+                    interactionPrompt.style.display = 'none';
+                }
+               
+                items.forEach(item => item.update());
+               
+                // Filter projectiles and handle deletion marking
+                projectiles = projectiles.filter(p => {
+                   if (p.markedForDeletion) return false;
+                   if (p instanceof Laser) return true; // Lasers handle their own duration
+                   // Relaxed bounds check for projectiles (e.g. falling rain spawning above)
+                   return p.x > -100 && p.x < canvas.width + 100 && p.y > -100 && p.y < canvas.height + 100;
+                });
+               
+                projectiles.forEach(p => p.update());
+               
+                // Hub Level check
+                if (chapterData[currentChapter].levels[currentLevel].type === 'hub') {
+                    checkLevelComplete();
+                }
+               
+                if(!isTestingLevel) updateTimer();
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawMap();
+            npcs.forEach(npc => npc.draw());
+            items.forEach(item => item.draw());
+            projectiles.forEach(p => p.draw());
+            enemies.forEach(enemy => enemy.draw());
+            bosses.forEach(boss => boss.draw());
+            if (player) player.draw();
+            updateUI();
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Event Listeners ---
+       
+        // Chapter 1 Menu
+        startButtonCh1.addEventListener('click', () => { currentChapter = 1; startGame(false); });
+        editorButtonCh1.addEventListener('click', () => { currentChapter = 1; lastMenuState = 'menu-ch1'; enterEditorMode(); });
+        settingsButtonCh1.addEventListener('click', () => {
+            lastMenuState = 'menu-ch1';
+            guiMenuCh1.classList.add('hidden');
+            guiSettings.classList.remove('hidden');
+        });
+        gotoCh2Button.addEventListener('click', () => {
+            guiMenuCh1.classList.add('hidden');
+            guiMenuCh2.classList.remove('hidden');
+            gameState = 'menu-ch2';
+        });
+
+        // Chapter 2 Menu
+        startButtonCh2.addEventListener('click', () => { currentChapter = 2; startGame(false); });
+        editorButtonCh2.addEventListener('click', () => { currentChapter = 2; lastMenuState = 'menu-ch2'; enterEditorMode(); });
+        settingsButtonCh2.addEventListener('click', () => {
+            lastMenuState = 'menu-ch2';
+            guiMenuCh2.classList.add('hidden');
+            guiSettings.classList.remove('hidden');
+        });
+        gotoCh1Button.addEventListener('click', () => {
+            guiMenuCh2.classList.add('hidden');
+            guiMenuCh1.classList.remove('hidden');
+            gameState = 'menu-ch1';
+        });
+        gotoCh3Button.addEventListener('click', () => {
+            guiMenuCh2.classList.add('hidden');
+            guiMenuCh3.classList.remove('hidden');
+            gameState = 'menu-ch3';
+        });
+
+        // Chapter 3 Menu
+        startButtonCh3.addEventListener('click', () => { currentChapter = 3; startGame(false); });
+        editorButtonCh3.addEventListener('click', () => { currentChapter = 3; lastMenuState = 'menu-ch3'; enterEditorMode(); });
+        settingsButtonCh3.addEventListener('click', () => {
+            lastMenuState = 'menu-ch3';
+            guiMenuCh3.classList.add('hidden');
+            guiSettings.classList.remove('hidden');
+        });
+        gotoCh2BackButton.addEventListener('click', () => {
+            guiMenuCh3.classList.add('hidden');
+            guiMenuCh2.classList.remove('hidden');
+            gameState = 'menu-ch2';
+        });
+       
+        // --- Settings Listeners ---
+        settingsBackButton.addEventListener('click', () => {
+            guiSettings.classList.add('hidden');
+            if (lastMenuState === 'menu-ch1') {
+                guiMenuCh1.classList.remove('hidden');
+                gameState = 'menu-ch1';
+            } else if (lastMenuState === 'menu-ch2') {
+                guiMenuCh2.classList.remove('hidden');
+                gameState = 'menu-ch2';
+            } else {
+                guiMenuCh3.classList.remove('hidden');
+                gameState = 'menu-ch3';
+            }
+        });
+
+        function updateAttackSetting(newSetting) {
+            settings.attack = newSetting;
+            attackSettingButtons.forEach(btn => btn.classList.remove('active'));
+            if (newSetting === 'mouse') settingAttackMouse.classList.add('active');
+            if (newSetting === 'arrowkeys') settingAttackArrows.classList.add('active');
+            if (newSetting === 'wasd') settingAttackWasd.classList.add('active');
+        }
+
+        settingAttackMouse.addEventListener('click', () => updateAttackSetting('mouse'));
+        settingAttackArrows.addEventListener('click', () => updateAttackSetting('arrowkeys'));
+        settingAttackWasd.addEventListener('click', () => updateAttackSetting('wasd'));
+       
+        // New Move Settings Listeners
+        settingMoveArrows.addEventListener('click', () => updateMoveSetting('arrowkeys'));
+        settingMoveWasd.addEventListener('click', () => updateMoveSetting('wasd'));
+
+        function updateMoveSetting(newSetting) {
+            settings.move = newSetting;
+            moveSettingButtons.forEach(btn => btn.classList.remove('active'));
+            if (newSetting === 'arrowkeys') settingMoveArrows.classList.add('active');
+            if (newSetting === 'wasd') settingMoveWasd.classList.add('active');
+        }
+
+        // --- Editor Listeners ---
+        exitEditorBtn.addEventListener('click', () => {
+             cancelAnimationFrame(gameLoopId);
+             guiEditor.classList.add('hidden');
+             if (lastMenuState === 'menu-ch1') {
+                guiMenuCh1.classList.remove('hidden');
+                gameState = 'menu-ch1';
+             } else if (lastMenuState === 'menu-ch2') {
+                guiMenuCh2.classList.remove('hidden');
+                gameState = 'menu-ch2';
+             } else {
+                guiMenuCh3.classList.remove('hidden');
+                gameState = 'menu-ch3';
+             }
+        });
+
+        testLevelBtn.addEventListener('click', () => {
+            const chap = chapterData[currentChapter];
+            currentLevel = chap.levels.length - 1;
+            startGame(true);
+        });
+
+        copyLevelBtn.addEventListener('click', () => {
+            const mapStrings = map.map(row => row.map(tile => tile.toString(16).toUpperCase()).join(''));
+            levelDataTextarea.value = JSON.stringify(mapStrings, null, 2);
+            levelDataTextarea.select();
+            try { document.execCommand('copy'); } catch(e) { console.error("Copy failed", e); }
+        });
+
+        pasteLevelBtn.addEventListener('click', () => {
+             try {
+                const chap = chapterData[currentChapter];
+                const customLevelIndex = chap.levels.length - 1;
+                const mapStrings = JSON.parse(levelDataTextarea.value);
+                if (Array.isArray(mapStrings) && mapStrings.length === chap.levels[customLevelIndex].map.length) {
+                    const newMapLayout = mapStrings.map(row => row.split('').map(c => parseInt(c, 16)));
+                    chap.levels[customLevelIndex].map = newMapLayout.map(row => row.map(tile => tile.toString(16).toUpperCase()).join(''));
+                    map = newMapLayout;
+                } else {
+                    console.error('Invalid map data format!');
+                }
+             } catch(e) {
+                console.error('Could not parse map data. Make sure it is valid JSON.', e);
+             }
+        });
+       
+        // --- General Listeners ---
+        resumeButton.addEventListener('click', resumeGame);
+        mainMenuButton.addEventListener('click', returnToMenu);
+
+        window.addEventListener('keydown', e => {
+            const key = e.key.toLowerCase();
+           
+            if (isDialogueOpen && key === ' ') {
+                closeDialogue();
+                return;
+            }
+           
+            if (gameState === 'playing' && key === 'e' && nearNPC && !isDialogueOpen) {
+                showDialogue(`${nearNPC.name}: ${nearNPC.dialogue}`);
+            }
+
+            if (gameState === 'playing') {
+                // --- Weapon Switching ---
+                const weaponIndex = parseInt(key) - 1;
+                if (!isNaN(weaponIndex) && weaponIndex >= 0 && weaponIndex < weapons.length) {
+                    player.currentWeapon = weaponIndex;
+                    const buttons = weaponSelectUI.querySelectorAll('.weapon-btn');
+                    buttons.forEach((btn, idx) => {
+                        if (idx === weaponIndex) btn.classList.add('active');
+                        else btn.classList.remove('active');
+                    });
+                }
+
+                // --- Cheat Key ---
+                if (key === 'q') {
+                    skipLevel();
+                    return;
+                }
+
+                // --- Attack Logic ---
+                if (settings.attack === 'arrowkeys') {
+                    if (key === 'arrowup') { e.preventDefault(); player.performAttack(-Math.PI / 2); }
+                    if (key === 'arrowdown') { e.preventDefault(); player.performAttack(Math.PI / 2); }
+                    if (key === 'arrowleft') { e.preventDefault(); player.performAttack(Math.PI); }
+                    if (key === 'arrowright') { e.preventDefault(); player.performAttack(0); }
+                } else if (settings.attack === 'wasd') {
+                    if (key === 'w') { e.preventDefault(); player.performAttack(-Math.PI / 2); }
+                    if (key === 's') { e.preventDefault(); player.performAttack(Math.PI / 2); }
+                    if (key === 'a') { e.preventDefault(); player.performAttack(Math.PI); }
+                    if (key === 'd') { e.preventDefault(); player.performAttack(0); }
+                   
+                    if (settings.move === 'arrowkeys' && (key === 'w' || key === 's' || key === 'a' || key === 'd')) {
+                        return;
+                    }
+                }
+            }
+
+            // --- Movement & General Keys ---
+            keys[key] = true;
+
+            // --- Pause Key ---
+            if (key === 'escape') {
+                if (gameState === 'playing') {
+                    pauseGame();
+                } else if (gameState === 'paused' && !guiMessage.classList.contains('hidden')) {
+                    // Don't unpause if a message is shown
+                } else if (gameState === 'paused') {
+                    resumeGame();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        canvas.addEventListener('mousedown', e => {
+            if (gameState === 'editor') {
+                mouse.down = true;
+                paintTile(e, e.button === 2);
+            }
+            if (gameState === 'playing' && settings.attack === 'mouse') {
+                player.attack();
+            }
+        });
+       
+        canvas.addEventListener('mouseup', e => {
+            if (gameState === 'editor') mouse.down = false;
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+            if (gameState === 'editor' && mouse.down) {
+                paintTile(e, e.buttons === 2);
+            }
+        });
+       
+        setupEditor();
+    </script>
+</body>
+</html>
