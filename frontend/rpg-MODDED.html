@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Weather RPG: Hard Mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #162447;
+            cursor: crosshair;
+            border-radius: 0.5rem;
+            border: 4px solid #1f4068;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+        }
+        .ui-panel {
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+        }
+        .hidden {
+            display: none;
+        }
+        .gui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 10, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Changed from center to prevent cutting off top */
+            text-align: center;
+            z-index: 10;
+            overflow-y: auto;
+            padding: 4rem 1rem 1rem 1rem; /* Increased top padding */
+        }
+        .gui-button, .gui-weapon-button, .gui-level-button {
+            padding: 0.75rem 2rem;
+            font-size: 1.25rem;
+            color: #1a1a2e;
+            background-color: #6ee7b7;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            margin-top: 1rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .gui-button:hover, .gui-weapon-button:hover, .gui-level-button:hover {
+            transform: scale(1.05);
+            background-color: #86efac;
+        }
+        .gui-weapon-button {
+            background-color: #4a5568;
+            color: #e0e0e0;
+        }
+        .gui-weapon-button:hover {
+            background-color: #718096;
+        }
+         .gui-level-button {
+            background-color: #4a5568;
+            color: #e0e0e0;
+            font-size: 1rem;
+            text-align: left;
+            padding: 1rem;
+        }
+        .gui-level-button:hover {
+            background-color: #718096;
+        }
+        .gui-level-button .level-time {
+            float: right;
+            color: #fcd34d;
+        }
+
+        #best-times-display {
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 2rem;
+            width: 100%;
+            max-width: 600px;
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container" class="game-container relative">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+       
+        <div id="ui-panel" class="ui-panel mt-4 w-full max-w-4xl text-sm hidden">
+            <div class="flex justify-between items-center">
+                <div>
+                    Health: <span id="health" class="text-green-400">100</span> |
+                    Level: <span id="level" class="text-yellow-300">1</span> |
+                    <span id="enemies-label">Enemies:</span> <span id="enemies-left" class="text-red-400">0</span>
+                </div>
+                 <div>Timer: <span id="timer" class="text-white">00:00:000</span></div>
+                <div>Weather: <span id="weather" class="text-cyan-300">Clear</span> (<span id="weather-timer" class="text-cyan-300">20</span>s)</div>
+            </div>
+            <div id="weapon-display" class="flex justify-center gap-4 mt-2 text-yellow-300">
+                <!-- Weapon display will be generated here --></div>
+        </div>
+
+        <!-- GUI Overlays --><div id="gui-menu" class="gui-overlay">
+            <h1 class="text-5xl text-yellow-300 mb-4">Duck Weather RPG</h1>
+            <img src="https://images.cooltext.com/5745602.gif" alt="Cool Text" class="mb-6">
+            <p class="text-lg text-gray-300 mb-8 max-w-md">Select your challenge.</p>
+            <button id="full-game-button" class="gui-button">Full Game</button>
+            <button id="hard-mode-button" class="gui-button" style="background-color: #ef4444;">Hard Mode (Full Game)</button>
+            <button id="level-select-button" class="gui-button">Level Select</button>
+
+            <div id="best-times-display">
+                <!-- Best times will be populated here --></div>
+        </div>
+
+        <div id="gui-weapon-select" class="gui-overlay hidden">
+             <h2 class="text-3xl text-yellow-300 mb-6">Select Your Weapon</h2>
+             <div id="weapon-select-container" class="w-full max-w-md">
+                <!-- Weapon buttons generated here --></div>
+             <button id="weapon-back-button" class="gui-button" style="background-color: #f87171;">Back</button>
+        </div>
+
+        <div id="gui-level-select" class="gui-overlay hidden">
+             <h2 class="text-3xl text-yellow-300 mb-6">Select Level</h2>
+             <div id="level-select-container" class="w-full max-w-md">
+                <!-- Level buttons generated here --></div>
+             <button id="level-back-button" class="gui-button" style="background-color: #f87171;">Back to Weapon Select</button>
+        </div>
+
+        <div id="gui-message" class="gui-overlay hidden">
+            <h2 id="message-title" class="text-4xl mb-4"></h2>
+            <p id="message-text" class="text-lg mb-8"></p>
+            <button id="message-button" class="gui-button"></button>
+        </div>
+    </div>
+
+    <script>
+        // --- Canvas and UI Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiPanel = document.getElementById('ui-panel');
+        const healthUI = document.getElementById('health');
+        const levelUI = document.getElementById('level');
+        const enemiesLabelUI = document.getElementById('enemies-label');
+        const enemiesLeftUI = document.getElementById('enemies-left');
+        const weatherUI = document.getElementById('weather');
+        const weatherTimerUI = document.getElementById('weather-timer');
+        const weaponDisplayUI = document.getElementById('weapon-display');
+        const timerUI = document.getElementById('timer');
+       
+        const guiMenu = document.getElementById('gui-menu');
+        const guiWeaponSelect = document.getElementById('gui-weapon-select');
+        const guiLevelSelect = document.getElementById('gui-level-select');
+        const guiMessage = document.getElementById('gui-message');
+
+        const fullGameButton = document.getElementById('full-game-button');
+        const hardModeButton = document.getElementById('hard-mode-button'); // New button
+        const levelSelectButton = document.getElementById('level-select-button');
+        const weaponSelectContainer = document.getElementById('weapon-select-container');
+        const weaponBackButton = document.getElementById('weapon-back-button');
+        const levelSelectContainer = document.getElementById('level-select-container');
+        const levelBackButton = document.getElementById('level-back-button');
+        const bestTimesDisplay = document.getElementById('best-times-display');
+       
+        const messageTitle = document.getElementById('message-title');
+        const messageText = document.getElementById('message-text');
+        const messageButton = document.getElementById('message-button');
+
+        // --- Game Constants ---
+        const TILE_SIZE = 40;
+        const PLAYER_SPEED = 3.5;
+        const STORAGE_KEY = 'duckWeatherRPGSpeedrunTimes';
+        const colors = {
+            player: 'yellow',
+            enemy: '#f87171', // red-400
+            boss: '#e11d48', // rose-600
+            projectile: '#f43f5e', // rose-500
+            playerProjectile: '#fde047', // yellow-300
+            attack: 'rgba(255, 255, 255, 0.3)',
+            tiles: {
+                0: '#4ade80', // green-400 (grass)
+                1: '#78716c', // stone-500 (rock/wall)
+                2: '#a16207', // yellow-700 (path)
+                3: '#4338ca', // indigo-700 (cave floor)
+                4: '#2563eb', // blue-600 (water)
+                5: '#a3a3a3', // neutral-400 (castle floor)
+                6: '#dc2626', // red-600 (boss floor)
+            }
+        };
+
+        // --- Game State ---
+        let player, enemies = [], projectiles = [], boss, map, weapons, weather, weatherInterval, gameLoopId, summons = [];
+        let keys = {};
+        let currentLevel = 0;
+        let gameState = 'menu'; // 'menu', 'playing', 'paused', 'levelup', 'gameover'
+        let mouse = { x: 0, y: 0 };
+        let startTime = 0;
+        let levelStartTime = 0;
+        let formattedFinalTime = "00:00:000";
+        let elapsedTimeMs = 0;
+
+        let speedrunData = {};
+        let currentGameMode = 'full'; // 'full' or 'level'
+        let isHardMode = false; // New state for hard mode
+        let chosenWeaponIndex = 0;
+        let chosenWeaponName = 'Broadsword';
+
+        // Variables for Laser
+        let laserActive = false;
+        let laserStartTime = 0;
+        const LASER_DURATION = 100; // ms
+        const LASER_WIDTH = 5;
+
+        // Variables for AoE attacks
+        let aoeAttacks = [];
+
+        // --- Game Data ---
+        const levels = [
+            {
+                name: "The Sunny Plains",
+                enemyCount: 5,
+                map: [
+                    "111111111111111111111111", "100022200000004444000001", "100220020000044444400001", "102200002220004440000001", "100000000022000000002201", "100000000002222222222001", "111111111111111111111111",
+                ]
+            },
+            {
+                name: "The Dank Cave",
+                enemyCount: 8,
+                map: [
+                    "111111111111111111111111", "133313333333333331333331", "134431333111331113334431", "13443133333133133334431", "133331113331331333333331", "133333333333333333333331", "111111111111111111111111",
+                ]
+            },
+            {
+                name: "Lazarus's Keep",
+                enemyCount: 10,
+                map: [
+                    "111111111111111111111111", "155555555555555555555551", "151115511155111551115511", "155555555555555555555551", "115511155111551115511155", "155555555555555555555551", "111111111111111111111111",
+                ]
+            },
+            {
+                name: "Throne of Lazarus",
+                enemyCount: 1, // Special flag for boss level
+                map: [
+                    "111111111111111111111111",
+                    "166666666666666666666661",
+                    "166661111111111111166661",
+                    "166661666666666666166661",
+                    "166661111111111111166661",
+                    "166666666666666666666661",
+                    "111111111111111111111111",
+                ]
+            }
+        ];
+       
+        const mapLayout = levels.map(level => level.map.map(row => row.split('').map(Number)));
+
+        const weaponsConfig = [
+            { name: "Broadsword", type: 'melee', damage: 12, range: TILE_SIZE * 1.5, cooldown: 500 },
+            { name: "Dagger", type: 'melee', damage: 8, range: TILE_SIZE * 0.9, cooldown: 250 },
+            { name: "Greatsword", type: 'melee', damage: 20, range: TILE_SIZE * 2.2, cooldown: 900 },
+            { name: "Gun", type: 'ranged', damage: 15, range: 0, cooldown: 150 },
+            { name: "Summoning Staff", type: 'summon', damage: 5, range: 0, cooldown: 5000 },
+            { name: "Laser Rifle", type: 'laser', damage: 25, range: 0, cooldown: 1000 },
+            { name: "Warhammer", type: 'aoe', damage: 35, range: TILE_SIZE * 2.5, cooldown: 2000, delay: 750 },
+            { name: "Legs", type: 'jump', damage: 100, range: 0, cooldown: 500 }, // New Weapon
+        ];
+       
+        const weatherTypes = [
+            { name: "Sunny", effect: "speed", value: 1.2, color: "#fcd34d" },
+            { name: "Rainy", effect: "defense", value: 0.75, color: "#60a5fa" },
+            { name: "Windy", effect: "attackSpeed", value: 0.8, color: "#9ca3af" }, // Will only affect melee
+            { name: "Stormy", effect: "damage", value: 1.5, color: "#a78bfa" },
+        ];
+       
+        // --- Utility Functions ---
+
+        function getDistance(obj1, obj2) {
+            return Math.hypot(obj1.x - obj2.x, obj1.y - obj2.y);
+        }
+
+        function formatTime(ms) {
+            if (ms === Infinity || ms === null || isNaN(ms)) {
+                return "--:--:---";
+            }
+            const minutes = String(Math.floor(ms / 60000)).padStart(2, '0');
+            const seconds = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+            const milliseconds = String(ms % 1000).padStart(3, '0');
+            return `${minutes}:${seconds}:${milliseconds}`;
+        }
+       
+        function getWeaponName(index) {
+            return weaponsConfig[index] ? weaponsConfig[index].name : "Unknown";
+        }
+
+        function loadSpeedrunData() {
+            let data;
+            try {
+                data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            } catch (e) {
+                console.error("Could not parse speedrun data, resetting.", e);
+                data = null;
+            }
+
+            if (!data) {
+                data = {
+                    fullGame: {},
+                    individualLevels: {},
+                    sumOfBest: {}
+                };
+            }
+
+            // Ensure all weapons and levels are present
+            weaponsConfig.forEach(weapon => {
+                const name = weapon.name;
+                if (!data.fullGame[name]) data.fullGame[name] = Infinity;
+                if (!data.sumOfBest[name]) data.sumOfBest[name] = Infinity;
+                if (!data.individualLevels[name]) {
+                    data.individualLevels[name] = new Array(levels.length).fill(Infinity);
+                } else if (data.individualLevels[name].length < levels.length) {
+                    // Add missing level slots if new levels were added
+                    const oldData = data.individualLevels[name];
+                    data.individualLevels[name] = new Array(levels.length).fill(Infinity);
+                    data.individualLevels[name].splice(0, oldData.length, ...oldData);
+                }
+            });
+
+            speedrunData = data;
+            console.log("Loaded speedrun data:", speedrunData);
+            saveSpeedrunData(); // Save back to ensure format is correct
+            displayBestTimes();
+        }
+
+        function saveSpeedrunData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(speedrunData));
+            } catch (e) {
+                console.error("Failed to save speedrun data:", e);
+            }
+        }
+
+        function displayBestTimes() {
+            bestTimesDisplay.innerHTML = '<h3 class="text-lg text-yellow-300 mb-2">Best Times</h3>';
+           
+            const table = document.createElement('table');
+            table.className = 'w-full text-left border-collapse';
+           
+            let thead = '<thead><tr><th class="p-1">Weapon</th><th class="p-1">Full Game</th><th class="p-1">Sum of Best</th></tr></thead>';
+           
+            let tbody = '<tbody>';
+            weaponsConfig.forEach(weapon => {
+                const name = weapon.name;
+                const fullTime = formatTime(speedrunData.fullGame[name]);
+                const sumTime = formatTime(speedrunData.sumOfBest[name]);
+                tbody += `<tr class="border-t border-gray-700"><td class="p-1 text-green-300">${name}</td><td class="p-1 text-cyan-300">${fullTime}</td><td class="p-1 text-purple-300">${sumTime}</td></tr>`;
+            });
+            tbody += '</tbody>';
+           
+            table.innerHTML = thead + tbody;
+            bestTimesDisplay.appendChild(table);
+        }
+
+        // --- New Summon Class ---
+        class Summon {
+            constructor(x, y, damage) {
+                this.x = x;
+                this.y = y;
+                this.size = TILE_SIZE * 0.7;
+                this.damage = damage; // Damage summon deals
+                this.speed = 2.5;
+                this.spawnTime = Date.now();
+                this.duration = 10000; // 10 seconds
+                this.isAlive = true;
+                this.attackCooldown = 750;
+                this.lastAttackTime = 0;
+                this.target = null;
+            }
+
+            findTarget() {
+                // Prioritize boss
+                if (boss) {
+                    this.target = boss;
+                    return;
+                }
+                
+                // Find closest enemy
+                let closestDist = Infinity;
+                let closestEnemy = null;
+                for (const enemy of enemies) {
+                    const dist = getDistance(this, enemy);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestEnemy = enemy;
+                    }
+                }
+                this.target = closestEnemy;
+            }
+
+            update() {
+                // Check if duration expired
+                if (Date.now() - this.spawnTime > this.duration) {
+                    this.remove();
+                    return;
+                }
+
+                // Find a target if we don't have one or if the old one is dead
+                if (!this.target || this.target.health <= 0) {
+                    this.findTarget();
+                }
+
+                if (this.target) {
+                    const dist = getDistance(this, this.target);
+                    // Check if target is in range
+                    if (dist > this.size / 2 + this.target.size / 2) {
+                        // Move towards target
+                        const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                        const newX = this.x + Math.cos(angle) * this.speed;
+                        const newY = this.y + Math.sin(angle) * this.speed;
+                        // No collision check for summons to keep it simple
+                        this.x = newX;
+                        this.y = newY;
+                    } else {
+                        // Attack target
+                        const now = Date.now();
+                        if (now - this.lastAttackTime > this.attackCooldown) {
+                            this.target.takeDamage(this.damage);
+                            this.lastAttackTime = now;
+                        }
+                    }
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = '#a78bfa'; // purple-400
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('👻', this.x, this.y); // A ghost friend
+
+                // Draw duration bar
+                const barWidth = this.size;
+                const barHeight = 4;
+                const yOffset = this.size / 2 + 5;
+                const remainingLife = Math.max(0, (this.duration - (Date.now() - this.spawnTime)) / this.duration);
+                
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                ctx.fillStyle = '#a78bfa';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * remainingLife, barHeight);
+            }
+
+            remove() {
+                this.isAlive = false;
+            }
+        }
+
+        // --- New AoE Hammer Class ---
+        class HammerSlam {
+            constructor(x, y, radius, damage, delay) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.damage = damage;
+                this.spawnTime = Date.now();
+                this.delay = delay;
+                this.hasDamaged = false; // To ensure it only damages once
+                this.isDone = false;
+            }
+
+            update() {
+                if (this.isDone) return;
+
+                const now = Date.now();
+                const elapsedTime = now - this.spawnTime;
+
+                // Deal damage at the exact delay moment
+                if (elapsedTime >= this.delay && !this.hasDamaged) {
+                    this.dealDamage();
+                    this.hasDamaged = true;
+                }
+                
+                // The visual effect will last for a short duration after the slam
+                if (elapsedTime >= this.delay + 200) { // 200ms for the "slam" visual
+                    this.isDone = true;
+                }
+            }
+
+            dealDamage() {
+                let damage = this.damage;
+                if (weather.effect === 'damage') damage *= weather.value;
+
+                // Damage boss
+                if (boss) {
+                    const dist = getDistance(this, boss);
+                    if (dist < this.radius + boss.size / 2) {
+                        boss.takeDamage(damage);
+                    }
+                }
+
+                // Damage enemies
+                enemies.forEach(enemy => {
+                    const dist = getDistance(this, enemy);
+                    if (dist < this.radius + enemy.size / 2) {
+                        enemy.takeDamage(damage);
+                    }
+                });
+            }
+
+            draw() {
+                const now = Date.now();
+                const elapsedTime = now - this.spawnTime;
+                const progress = Math.min(1, elapsedTime / this.delay);
+
+                if (progress < 1) {
+                    // Draw a "landing" indicator (e.g., a growing circle)
+                    const indicatorRadius = this.radius * progress;
+                    ctx.strokeStyle = 'rgba(255, 255, 100, 0.7)'; // Yellow warning
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); // Show full radius
+                    ctx.stroke();
+
+                    ctx.fillStyle = 'rgba(255, 255, 100, 0.2)';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, indicatorRadius, 0, Math.PI * 2); // Fill up
+                    ctx.fill();
+
+
+                    // Draw a shadow
+                    const shadowSize = TILE_SIZE * 2 * (1 - progress * 0.8); // Shrinking shadow
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.font = `${shadowSize}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🔨', this.x, this.y);
+
+                } else {
+                    // Draw the "slam" effect
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; // White flash
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#6b462c'; // The hammer
+                    ctx.font = `${TILE_SIZE * 2}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🔨', this.x, this.y);
+                }
+            }
+        }
+
+
+        // --- Game Object Classes (Player, MiniLazarus, Boss, Enemy) ---
+        class Player {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = TILE_SIZE;
+                this.maxHealth = 100;
+                this.health = 100;
+                this.baseSpeed = PLAYER_SPEED;
+                this.currentWeapon = 0;
+                this.lastAttackTime = 0;
+                this.isAttacking = false;
+                this.attackAnimTimeout = null;
+                this.attackAngle = 0;
+                
+                // Jump properties
+                this.z = 0; // Height
+                this.vz = 0; // Vertical velocity
+                this.gravity = 0.6;
+                this.isJumping = false;
+                this.jumpCombo = 1;
+            }
+            draw() {
+                // Draw Shadow (always on ground) - helps with depth perception
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                // Shadow shrinks as you jump higher
+                const shadowScale = Math.max(0.4, 1 - this.z / 300);
+                ctx.ellipse(this.x, this.y, (this.size/2) * shadowScale, (this.size/4) * shadowScale, 0, 0, Math.PI*2);
+                ctx.fill();
+
+                // Draw Player (Visuals affected by Z height)
+                const drawY = this.y - this.z;
+                const scale = 1 + (this.z / 150); // Character gets bigger as they jump
+
+                ctx.save();
+                ctx.translate(this.x, drawY);
+                ctx.scale(scale, scale);
+
+                // Draw "Legs" Jump Height Bar
+                if (this.isJumping) {
+                    const barW = 6;
+                    const barH = 30;
+                    const barX = this.size / 2 + 10;
+                    // Background
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(barX, -barH/2, barW, barH);
+                    // Fill based on height (capped visual at 200 height)
+                    const fillPct = Math.min(1, this.z / 200);
+                    ctx.fillStyle = '#0ea5e9'; // Sky blue
+                    ctx.fillRect(barX, -barH/2 + barH * (1-fillPct), barW, barH * fillPct);
+                }
+
+                // Normal Attack Effects (Flash/Cone) - drawn relative to (0,0) now due to translate
+                if (this.isAttacking) {
+                    const weapon = weapons[this.currentWeapon];
+                    ctx.save();
+                    // Rotation handles direction, but now we are at 0,0 relative to the player center
+                    ctx.rotate(this.attackAngle);
+
+                    if (weapon.type === 'ranged') {
+                         // ... existing drawing code adapted to local coords ...
+                        ctx.fillStyle = colors.playerProjectile;
+                        ctx.beginPath();
+                        ctx.arc(this.size / 2, 0, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (weapon.type === 'summon') {
+                        ctx.fillStyle = '#a78bfa';
+                        ctx.globalAlpha = 0.8;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, this.size * 0.8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                    } else if (weapon.type === 'laser') {
+                         ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                        ctx.beginPath();
+                        ctx.arc(this.size / 2, 0, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (weapon.type === 'aoe') {
+                        ctx.fillStyle = 'rgba(255, 255, 100, 0.5)';
+                        ctx.globalAlpha = 0.8;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, this.size * 0.9, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                    } else if (weapon.type !== 'jump') { // Don't draw cone for legs
+                        ctx.beginPath();
+                        ctx.fillStyle = colors.attack;
+                        ctx.globalAlpha = 0.6;
+                        ctx.arc(weapon.range / 2, 0, weapon.range / 2, -Math.PI/2.5, Math.PI/2.5);
+                        ctx.lineTo(0, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+               
+                // Health Bar (Relative to 0,0)
+                if (this.health < this.maxHealth) {
+                    const barWidth = this.size; const barHeight = 6;
+                    const yOffset = this.size / 2 + 8;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(-barWidth / 2, -yOffset, barWidth, barHeight);
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fillRect(-barWidth / 2, -yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                    ctx.strokeStyle = '#111';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(-barWidth / 2, -yOffset, barWidth, barHeight);
+                }
+                
+                // The Duck Emoji (Relative to 0,0)
+                ctx.fillStyle = colors.player; 
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; 
+                ctx.textBaseline = 'middle'; 
+                ctx.fillText('🦆', 0, 0);
+                
+                // Combo counter if jumping
+                if (this.jumpCombo > 1) {
+                    ctx.fillStyle = '#fde047';
+                    ctx.font = 'bold 20px sans-serif';
+                    ctx.fillText(`x${this.jumpCombo}`, 0, -this.size);
+                }
+
+                ctx.restore();
+            }
+            isColliding(x, y) {
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                return tileType === 1 || tileType === 4;
+            }
+            update() {
+                // --- Physics (Jump) ---
+                if (this.isJumping) {
+                    this.z += this.vz;
+                    this.vz -= this.gravity;
+
+                    // Check for STOMP (Collision with enemy while falling)
+                    if (this.vz < 0 && this.z < TILE_SIZE) { // Falling and near ground
+                        const targets = boss ? [boss] : enemies;
+                        
+                        for (const target of targets) {
+                            if (target && target.health > 0) {
+                                // Simple overlap check
+                                if (getDistance(this, target) < (this.size + target.size) / 2) {
+                                    // BOUNCE!
+                                    const weapon = weapons[this.currentWeapon];
+                                    let damage = weapon.damage * this.jumpCombo;
+                                    if (weather.effect === 'damage') damage *= weather.value;
+                                    
+                                    target.takeDamage(damage);
+                                    
+                                    this.vz = 12; // Bounce back up
+                                    this.jumpCombo *= 2; // Multiply combo
+                                    this.z = target.size; // Snap to top of enemy
+                                    
+                                    // Prevent hitting multiple enemies in one frame (optional balance choice)
+                                    break; 
+                                }
+                            }
+                        }
+                    }
+
+                    // Landing on ground
+                    if (this.z <= 0) {
+                        this.z = 0;
+                        this.vz = 0;
+                        this.isJumping = false;
+                        this.jumpCombo = 1; // Reset combo
+                    }
+                }
+
+                let speed = this.baseSpeed;
+                if (weather.effect === 'speed') speed *= weather.value;
+                let vx = 0; let vy = 0;
+               
+                if (keys['w']) vy = -1;
+                if (keys['s']) vy = 1;
+                if (keys['a']) vx = -1;
+                if (keys['d']) vx = 1;
+
+                if (vx !== 0 && vy !== 0) {
+                    vx *= Math.SQRT1_2; vy *= Math.SQRT1_2;
+                }
+                const newX = this.x + vx * speed;
+                const newY = this.y + vy * speed;
+                if (!this.isColliding(newX, this.y)) this.x = newX;
+                if (!this.isColliding(this.x, newY)) this.y = newY;
+                this.x = Math.max(0, Math.min(canvas.width, this.x));
+                this.y = Math.max(0, Math.min(canvas.height, this.y));
+
+                let attackX = 0;
+                let attackY = 0;
+                if (keys['arrowup']) attackY = -1;
+                if (keys['arrowdown']) attackY = 1;
+                if (keys['arrowleft']) attackX = -1;
+                if (keys['arrowright']) attackX = 1;
+
+                if (attackX !== 0 || attackY !== 0) {
+                    const attackAngle = Math.atan2(attackY, attackX);
+                    this.attack(attackAngle);
+                }
+            }
+            attack(angle) {
+                const weapon = weapons[this.currentWeapon];
+                
+                // --- JUMP WEAPON LOGIC ---
+                if (weapon.type === 'jump') {
+                    if (!this.isJumping) {
+                        // Start Jump
+                        this.isJumping = true;
+                        this.vz = 12; // Initial jump velocity
+                        this.jumpCombo = 1;
+                        
+                        // Set attack angle for "facing" direction if we want
+                        if (angle !== undefined) {
+                            this.attackAngle = angle;
+                        } else {
+                            this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+                        }
+                    }
+                    // Can't attack again while in air
+                    return;
+                }
+
+                let cooldown = weapon.cooldown;
+                // Windy weather only affects melee attack speed
+                if (weather.effect === 'attackSpeed' && weapon.type === 'melee') {
+                    cooldown *= weather.value;
+                }
+               
+                const now = Date.now();
+                if (now - this.lastAttackTime < cooldown) return;
+               
+                this.lastAttackTime = now;
+
+                if (angle !== undefined) {
+                    this.attackAngle = angle;
+                } else {
+                    this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+                }
+
+                if (weapon.type === 'ranged') {
+                    // --- Ranged Attack (Gun) ---
+                    projectiles.push(new PlayerProjectile(this.x, this.y, this.attackAngle, weapon.damage));
+                   
+                    // Short muzzle flash animation
+                    this.isAttacking = true;
+                    clearTimeout(this.attackAnimTimeout);
+                    this.attackAnimTimeout = setTimeout(() => this.isAttacking = false, 50);
+
+                } else if (weapon.type === 'summon') {
+                    // --- Summon Attack ---
+                    summons.push(new Summon(this.x, this.y, weapon.damage));
+                    
+                    // Show a summoning animation
+                    this.isAttacking = true;
+                    // Point 'animation' upwards
+                    this.attackAngle = -Math.PI / 2;
+                    clearTimeout(this.attackAnimTimeout);
+                    this.attackAnimTimeout = setTimeout(() => this.isAttacking = false, 100);
+
+                } else if (weapon.type === 'laser') {
+                    // --- Laser Attack ---
+                    laserActive = true;
+                    laserStartTime = now;
+                    this.isAttacking = true; // For player's muzzle flash
+
+                    // Calculate laser end point
+                    const laserLength = Math.max(canvas.width, canvas.height);
+                    const laserEndX = this.x + Math.cos(this.attackAngle) * laserLength;
+                    const laserEndY = this.y + Math.sin(this.attackAngle) * laserLength;
+
+                    let damage = weapon.damage;
+                    if (weather.effect === 'damage') damage *= weather.value;
+
+                    // Check collision with boss first
+                    if (boss) {
+                        if (checkLineCircleCollision(this.x, this.y, laserEndX, laserEndY, boss.x, boss.y, boss.size / 2)) {
+                            boss.takeDamage(damage);
+                        }
+                    }
+
+                    // Check collision with all enemies
+                    enemies.forEach(enemy => {
+                        if (checkLineCircleCollision(this.x, this.y, laserEndX, laserEndY, enemy.x, enemy.y, enemy.size / 2)) {
+                            enemy.takeDamage(damage);
+                        }
+                    });
+
+                    clearTimeout(this.attackAnimTimeout);
+                    this.attackAnimTimeout = setTimeout(() => {
+                        this.isAttacking = false;
+                        laserActive = false; // Deactivate laser after duration
+                    }, LASER_DURATION);
+                }
+                else if (weapon.type === 'aoe') {
+                    // --- AoE Attack (Warhammer) ---
+                    let targetX, targetY;
+                    
+                    if (angle === undefined) {
+                        // Mouse click
+                        targetX = mouse.x;
+                        targetY = mouse.y;
+                    } else {
+                        // Keyboard attack
+                        const attackDist = TILE_SIZE * 4; // Drop 4 tiles away
+                        targetX = this.x + Math.cos(angle) * attackDist;
+                        targetY = this.y + Math.sin(angle) * attackDist;
+                    }
+
+                    aoeAttacks.push(new HammerSlam(targetX, targetY, weapon.range, weapon.damage, weapon.delay));
+                    
+                    // Show a short casting animation
+                    this.isAttacking = true;
+                    this.attackAngle = -Math.PI / 2; // Point up
+                    clearTimeout(this.attackAnimTimeout);
+                    this.attackAnimTimeout = setTimeout(() => this.isAttacking = false, 200);
+                }
+                else {
+                    // --- Melee Attack ---
+                    this.isAttacking = true;
+                    clearTimeout(this.attackAnimTimeout);
+                    this.attackAnimTimeout = setTimeout(() => this.isAttacking = false, 100);
+
+                    const targets = boss ? [boss] : enemies;
+                    targets.forEach(target => {
+                        const dist = getDistance(this, target);
+                        if (dist < weapon.range + target.size / 2) {
+                            const angleToTarget = Math.atan2(target.y - this.y, target.x - this.x);
+                            let angleDiff = Math.abs(this.attackAngle - angleToTarget);
+                            if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+                           
+                            if (angleDiff < Math.PI / 2.5) {
+                                let damage = weapon.damage;
+                                if (weather.effect === 'damage') damage *= weather.value;
+                                target.takeDamage(damage);
+                            }
+                        }
+                    });
+                }
+            }
+            takeDamage(amount) {
+                // --- FIX: Immune to damage while jumping (Stomp Attack) ---
+                if (this.isJumping) return;
+
+                if (weather.effect === 'defense') amount *= weather.value;
+                this.health -= Math.round(amount);
+                if(this.health <= 0) {
+                    this.health = 0;
+                    gameState = 'gameover';
+                    formattedFinalTime = formatTime(elapsedTimeMs); // Capture time on death
+                    showGUI("Game Over", "The IMT Lazarus forces were too strong!", "Main Menu", resetGame);
+                }
+                updateUI();
+            }
+        }
+       
+        class MiniLazarus { // Enemy projectile
+            constructor(x, y, angle) {
+                this.x = x; this.y = y;
+                this.size = TILE_SIZE * 0.5;
+                this.speed = 4;
+                this.damage = 10;
+                this.angle = angle;
+            }
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+
+                if (getDistance(this, player) < player.size / 2) {
+                    player.takeDamage(this.damage);
+                    this.remove();
+                }
+            }
+            draw() {
+                ctx.fillStyle = colors.projectile;
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.fillText('L', this.x, this.y);
+            }
+            remove() {
+                projectiles = projectiles.filter(p => p !== this);
+            }
+        }
+
+        // --- ADDED: PlayerProjectile Class ---
+        class PlayerProjectile {
+            constructor(x, y, angle, damage) {
+                this.x = x;
+                this.y = y;
+                this.size = TILE_SIZE * 0.4;
+                this.speed = 8;
+                this.damage = damage;
+                this.angle = angle;
+            }
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+
+                // Check collision with boss
+                if (boss) {
+                    if (getDistance(this, boss) < boss.size / 2) {
+                        let damage = this.damage;
+                        if (weather.effect === 'damage') damage *= weather.value;
+                        boss.takeDamage(damage);
+                        this.remove();
+                        return; // Stop after hitting boss
+                    }
+                }
+                
+                // Check collision with enemies
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    if (getDistance(this, enemy) < enemy.size / 2) {
+                        let damage = this.damage;
+                        if (weather.effect === 'damage') damage *= weather.value;
+                        enemy.takeDamage(damage);
+                        this.remove();
+                        return; // Stop after hitting one enemy
+                    }
+                }
+            }
+            draw() {
+                ctx.fillStyle = colors.playerProjectile;
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('•', this.x, this.y);
+            }
+            remove() {
+                projectiles = projectiles.filter(p => p !== this);
+            }
+        }
+
+        class Boss {
+             constructor(x, y) {
+                this.x = x; this.y = y; this.size = TILE_SIZE * 3;
+                this.maxHealth = 500;
+                this.health = 500;
+                this.speed = 1;
+                this.damage = 20;
+                this.attackCooldown = 2000; this.lastAttackTime = Date.now();
+                this.aggroRange = TILE_SIZE * 20;
+            }
+            draw() {
+                ctx.fillStyle = colors.boss; ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🔱', this.x, this.y);
+                const barWidth = this.size * 1.5; const barHeight = 15;
+                const yOffset = this.size / 2 + 15;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+            }
+            isColliding(x, y) {
+                 const tileX = Math.floor(x / TILE_SIZE);
+                 const tileY = Math.floor(y / TILE_SIZE);
+                 const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                 return tileType === 1 || tileType === 4;
+            }
+            update() {
+                const dist = getDistance(this, player);
+                if (dist > player.size) {
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    const newX = this.x + Math.cos(angle) * this.speed;
+                    const newY = this.y + Math.sin(angle) * this.speed;
+                    if (!this.isColliding(newX, this.y)) this.x = newX;
+                    if (!this.isColliding(this.x, newY)) this.y = newY;
+                }
+               
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                    projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer));
+                    this.lastAttackTime = now;
+                }
+            }
+             takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    boss = null;
+                    checkLevelComplete();
+                }
+            }
+        }
+
+        class Enemy {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = TILE_SIZE * 0.8;
+                this.maxHealth = 30 + (currentLevel * 10);
+                this.health = this.maxHealth;
+                this.speed = 1.5 + (currentLevel * 0.2);
+                this.damage = 5 + (currentLevel * 2);
+                this.attackCooldown = 1000; this.lastAttackTime = 0; this.aggroRange = TILE_SIZE * 6;
+            }
+            draw() {
+                ctx.fillStyle = colors.enemy; ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('L', this.x, this.y);
+                if (this.health < this.maxHealth) {
+                    const barWidth = this.size; const barHeight = 5;
+                    const yOffset = this.size / 2 + 5;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                }
+            }
+            isColliding(x, y) {
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                return tileType === 1 || tileType === 4;
+            }
+            update() {
+                const dist = getDistance(this, player);
+                if (dist < this.aggroRange && dist > player.size / 2) {
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    const newX = this.x + Math.cos(angle) * this.speed;
+                    const newY = this.y + Math.sin(angle) * this.speed;
+                    if (!this.isColliding(newX, this.y)) this.x = newX;
+                    if (!this.isColliding(this.x, newY)) this.y = newY;
+                }
+                if (dist < player.size / 2 + 5) {
+                     const now = Date.now();
+                     if (now - this.lastAttackTime > this.attackCooldown) {
+                         player.takeDamage(this.damage);
+                         this.lastAttackTime = now;
+                     }
+                }
+            }
+            takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    enemies = enemies.filter(e => e !== this);
+                    checkLevelComplete();
+                }
+            }
+        }
+
+        // --- Collision Detection for Laser ---
+        // Function to check if a line segment intersects a circle
+        // Adapted from: http://jeffreythompson.org/collision-detection/line-circle.php
+        function checkLineCircleCollision(x1, y1, x2, y2, cx, cy, r) {
+            // is either end inside the circle?
+            const d1 = getDistance({x: x1, y: y1}, {x: cx, y: cy});
+            const d2 = getDistance({x: x2, y: y2}, {x: cx, y: cy});
+            if (d1 <= r || d2 <= r) return true;
+
+            // get length of the line
+            const len = getDistance({x: x1, y: y1}, {x: x2, y: y2});
+            if (len === 0) return false;
+
+            // get dot product of the line and circle
+            const dot = (((cx-x1)*(x2-x1)) + ((cy-y1)*(y2-y1))) / Math.pow(len,2);
+
+            // find the closest point on the line to the circle
+            const closestX = x1 + (dot * (x2-x1));
+            const closestY = y1 + (dot * (y2-y1));
+
+            // is this point on the line segment?
+            const onSegment = getDistance({x: x1, y: y1}, {x: closestX, y: closestY}) + getDistance({x: closestX, y: closestY}, {x: x2, y: y2}) === len;
+            if (!onSegment) return false;
+
+            // distance from closest point to circle center
+            const distToCircle = getDistance({x: closestX, y: closestY}, {x: cx, y: cy});
+            return distToCircle <= r;
+        }
+
+
+        // --- Game Setup and Loop ---
+
+        function findValidSpawnPoint() {
+            let x, y, tileType;
+            const mapHeight = map.length;
+            const mapWidth = map[0].length;
+            do {
+                x = Math.random() * (mapWidth * TILE_SIZE);
+                y = Math.random() * (mapHeight * TILE_SIZE);
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                tileType = map[tileY] ? map[tileY][tileX] : 1;
+            } while (tileType === 1 || tileType === 4 || getDistance({x, y}, player) < TILE_SIZE * 3); // Avoid walls, water, and spawning on the player
+            return { x, y };
+        }
+
+        function loadLevel() {
+            map = mapLayout[currentLevel];
+           
+            // Set player spawn point
+            if (currentLevel === 0) { // Plains
+                 player.x = TILE_SIZE * 2;
+                 player.y = TILE_SIZE * 2;
+            } else if (currentLevel === 1 || currentLevel === 2) { // Cave & Keep
+                 player.x = TILE_SIZE * 1.5;
+                 player.y = TILE_SIZE * 1.5;
+            } else if (currentLevel === 3) { // Boss
+                 player.x = TILE_SIZE * 3;
+                 player.y = TILE_SIZE * 3.5;
+            }
+
+            enemies = [];
+            projectiles = [];
+            summons = [];
+            boss = null;
+            aoeAttacks = []; // Clear active AoE attacks
+
+            if (currentLevel === levels.length - 1) { // Boss level
+                boss = new Boss(canvas.width * 0.75, canvas.height / 2);
+            } else {
+                 let enemyCount = levels[currentLevel].enemyCount;
+                 if (isHardMode) { // Apply hard mode multiplier
+                     enemyCount *= 10;
+                 }
+                 for (let i = 0; i < enemyCount; i++) {
+                    const spawnPoint = findValidSpawnPoint();
+                    enemies.push(new Enemy(spawnPoint.x, spawnPoint.y));
+                }
+            }
+            updateUI();
+        }
+
+        function checkLevelComplete() {
+            if (gameState !== 'playing') return;
+           
+            const levelCleared = enemies.length === 0 && !boss;
+            if (!levelCleared) return;
+
+            const levelTimeMs = Date.now() - levelStartTime;
+            let isNewBestLevel = false;
+
+            // --- ONLY SAVE TIMES IF NOT IN HARD MODE ---
+            if (!isHardMode) {
+                if (levelTimeMs < speedrunData.individualLevels[chosenWeaponName][currentLevel]) {
+                    speedrunData.individualLevels[chosenWeaponName][currentLevel] = levelTimeMs;
+                    isNewBestLevel = true;
+                   
+                    // Recalculate Sum of Best
+                    let sum = 0;
+                    let allLevelsSet = true;
+                    for (const time of speedrunData.individualLevels[chosenWeaponName]) {
+                        if (time === Infinity) {
+                            allLevelsSet = false;
+                            break;
+                        }
+                        sum += time;
+                    }
+                    if (allLevelsSet) {
+                        speedrunData.sumOfBest[chosenWeaponName] = sum;
+                    } else {
+                        speedrunData.sumOfBest[chosenWeaponName] = Infinity;
+                    }
+                    saveSpeedrunData();
+                }
+            }
+
+            if (currentGameMode === 'full') {
+                if (currentLevel < levels.length - 1) {
+                    // --- Go to next level ---
+                    gameState = 'levelup';
+                    let levelClearText = `You cleared ${levels[currentLevel].name}.`;
+                    if (isNewBestLevel && !isHardMode) levelClearText += " (New Best Level Time!)";
+                   
+                    formattedFinalTime = formatTime(levelTimeMs); // Show time for the level just completed
+                    showGUI("Level Complete!", levelClearText, "Next Level", () => {
+                        currentLevel++;
+                        loadLevel();
+                        guiMessage.classList.add('hidden');
+                        gameState = 'playing';
+                        levelStartTime = Date.now(); // Reset level timer
+                    });
+                } else {
+                    // --- Finished full game ---
+                    gameState = 'gameover';
+                    let isNewBestFull = false;
+                   
+                    // --- ONLY SAVE TIMES IF NOT IN HARD MODE ---
+                    if (!isHardMode) {
+                        if (elapsedTimeMs < speedrunData.fullGame[chosenWeaponName]) {
+                            speedrunData.fullGame[chosenWeaponName] = elapsedTimeMs;
+                            isNewBestFull = true;
+                            saveSpeedrunData();
+                        }
+                    }
+                   
+                    let winText = "You have defeated the IMT Lazarus army!";
+                    if (isHardMode) winText += " (Hard Mode Cleared!)";
+                    else if (isNewBestFull) winText += " (New Best Full Game Time!)";
+                    else if (isNewBestLevel) winText += " (New Best Time for final level!)";
+
+                    formattedFinalTime = formatTime(elapsedTimeMs);
+                    showGUI("You Win!", winText, "Main Menu", resetGame);
+                }
+            } else if (currentGameMode === 'level') {
+                // --- Finished single level run (Hard mode not applicable here) ---
+                gameState = 'gameover';
+                let completeText = `You cleared ${levels[currentLevel].name}!`;
+                if (isNewBestLevel && !isHardMode) completeText += " (New Best Time!)";
+               
+                formattedFinalTime = formatTime(levelTimeMs); // Set display time to this level's time
+                showGUI("Level Complete!", completeText, "Main Menu", resetGame);
+            }
+        }
+
+        function startGame(startLevelIndex) {
+            gameState = 'playing';
+            currentLevel = startLevelIndex;
+           
+            guiMenu.classList.add('hidden');
+            guiWeaponSelect.classList.add('hidden');
+            guiLevelSelect.classList.add('hidden');
+            guiMessage.classList.add('hidden');
+            uiPanel.classList.remove('hidden');
+           
+            player = new Player(TILE_SIZE * 2, TILE_SIZE * 2);
+            player.currentWeapon = chosenWeaponIndex;
+            weapons = weaponsConfig;
+           
+            startTime = Date.now();
+            levelStartTime = Date.now();
+            elapsedTimeMs = 0;
+           
+            setupWeather();
+            setupWeaponsUI();
+            loadLevel();
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+       
+        function resetGame() {
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(weatherInterval);
+            summons = [];
+            aoeAttacks = []; // Clear AoE attacks on reset
+            currentLevel = 0;
+            isHardMode = false; // Reset hard mode
+           
+            guiMessage.classList.add('hidden');
+            uiPanel.classList.add('hidden');
+           
+            loadSpeedrunData(); // Reload and display the latest times
+            displayBestTimes();
+           
+            guiMenu.classList.remove('hidden');
+            gameState = 'menu';
+        }
+
+        function updateUI() {
+            if (!player) return;
+            healthUI.textContent = player.health;
+            levelUI.textContent = currentLevel + 1;
+
+            if (boss) {
+                enemiesLabelUI.textContent = "Boss Health:";
+                enemiesLeftUI.textContent = `${boss.health}/${boss.maxHealth}`;
+                enemiesLeftUI.className = 'text-purple-400';
+            } else {
+                enemiesLabelUI.textContent = "Enemies:";
+                enemiesLeftUI.textContent = enemies.length;
+                enemiesLeftUI.className = 'text-red-400';
+            }
+
+            weatherUI.textContent = weather.name;
+            weatherUI.style.color = weather.color;
+        }
+
+        function setupWeather() {
+            let currentTimer = 20;
+            weather = weatherTypes[0];
+            weatherTimerUI.textContent = currentTimer;
+            if(weatherInterval) clearInterval(weatherInterval);
+            weatherInterval = setInterval(() => {
+                if (gameState !== 'playing') return;
+                currentTimer--;
+                if (currentTimer <= 0) {
+                    currentTimer = 20;
+                    const newIndex = Math.floor(Math.random() * weatherTypes.length);
+                    weather = weatherTypes[newIndex];
+                    updateUI();
+                }
+                weatherTimerUI.textContent = currentTimer;
+            }, 1000);
+        }
+       
+        function setupWeaponsUI() {
+            // This no longer shows buttons, just the chosen weapon
+            weaponDisplayUI.innerHTML = `<p>Weapon: ${chosenWeaponName}</p>`;
+        }
+
+        function drawMap() {
+            for (let y = 0; y < map.length; y++) {
+                for (let x = 0; x < map[y].length; x++) {
+                    ctx.fillStyle = colors.tiles[map[y][x]] || 'black';
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+       
+        function gameLoop() {
+            if (gameState === 'playing') {
+                player.update();
+                enemies.forEach(enemy => enemy.update());
+                if (boss) boss.update();
+               
+                summons.forEach(summon => summon.update());
+                summons = summons.filter(s => s.isAlive);
+
+                aoeAttacks.forEach(attack => attack.update());
+                aoeAttacks = aoeAttacks.filter(attack => !attack.isDone);
+
+                projectiles.forEach(p => p.update());
+                projectiles = projectiles.filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+               
+                updateTimer();
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawMap();
+            projectiles.forEach(p => p.draw());
+            summons.forEach(summon => summon.draw());
+            enemies.forEach(enemy => enemy.draw());
+            if (boss) boss.draw();
+            
+            aoeAttacks.forEach(attack => attack.draw()); // Draw AoE effects
+            
+            player.draw();
+
+            // Draw Laser if active
+            if (laserActive && (Date.now() - laserStartTime < LASER_DURATION)) {
+                ctx.save();
+                ctx.translate(player.x, player.y);
+                ctx.rotate(player.attackAngle);
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = LASER_WIDTH;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(canvas.width, 0); // Laser extends to edge of canvas
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            updateUI();
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function updateTimer() {
+            if (gameState !== 'playing') return;
+            elapsedTimeMs = Date.now() - startTime;
+            timerUI.textContent = formatTime(elapsedTimeMs);
+        }
+
+        function showGUI(title, text, buttonText, buttonAction) {
+            messageTitle.textContent = title;
+            messageText.textContent = text + `\n\nFinal Time: ${formattedFinalTime}`; // Always show the time
+            messageButton.textContent = buttonText;
+            messageButton.onclick = buttonAction;
+            guiMessage.classList.remove('hidden');
+        }
+
+        // --- Menu Navigation ---
+
+        function showWeaponSelect() {
+            weaponSelectContainer.innerHTML = ''; // Clear previous
+            weaponsConfig.forEach((weapon, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'gui-weapon-button';
+                btn.textContent = `${weapon.name} (Dmg: ${weapon.damage}, CD: ${weapon.cooldown}ms)`;
+                btn.onclick = () => {
+                    chosenWeaponIndex = index;
+                    chosenWeaponName = weapon.name;
+                    guiWeaponSelect.classList.add('hidden');
+
+                    if (currentGameMode === 'full') {
+                        startGame(0); // Start full game from level 0
+                    } else {
+                        showLevelSelect();
+                    }
+                };
+                weaponSelectContainer.appendChild(btn);
+            });
+            guiMenu.classList.add('hidden');
+            guiLevelSelect.classList.add('hidden');
+            guiWeaponSelect.classList.remove('hidden');
+        }
+
+        function showLevelSelect() {
+            levelSelectContainer.innerHTML = ''; // Clear previous
+            levels.forEach((level, index) => {
+                 const btn = document.createElement('button');
+                 btn.className = 'gui-level-button';
+                 const bestTime = speedrunData.individualLevels[chosenWeaponName][index];
+                 btn.innerHTML = `<span>Level ${index + 1}: ${level.name}</span> <span class="level-time">Best: ${formatTime(bestTime)}</span>`;
+                 btn.onclick = () => {
+                    currentGameMode = 'level'; // Ensure mode is set
+                    startGame(index); // Start game on this specific level
+                 };
+                 levelSelectContainer.appendChild(btn);
+            });
+            guiWeaponSelect.classList.add('hidden');
+            guiLevelSelect.classList.remove('hidden');
+        }
+
+        fullGameButton.addEventListener('click', () => {
+            currentGameMode = 'full';
+            isHardMode = false;
+            showWeaponSelect();
+        });
+
+        hardModeButton.addEventListener('click', () => {
+            currentGameMode = 'full';
+            isHardMode = true;
+            showWeaponSelect();
+        });
+
+        levelSelectButton.addEventListener('click', () => {
+            currentGameMode = 'level';
+            isHardMode = false; // No hard mode for individual levels
+            showWeaponSelect();
+        });
+
+        weaponBackButton.addEventListener('click', () => {
+            guiWeaponSelect.classList.add('hidden');
+            guiMenu.classList.remove('hidden');
+        });
+
+        levelBackButton.addEventListener('click', () => {
+            guiLevelSelect.classList.add('hidden');
+            showWeaponSelect(); // Go back to weapon select
+        });
+
+        // --- Core Event Listeners ---
+       
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        canvas.addEventListener('mousedown', e => {
+            if (gameState === 'playing') player.attack(); // No angle passed, will use mouse
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+       
+        // --- Initial Load ---
+        loadSpeedrunData();
+
+    </script>
+</body>
+</html>
