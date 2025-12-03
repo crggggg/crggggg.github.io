@@ -3,41 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather App Games</title>
+    <title>Weather Duck Games</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            background-color: #ffffff; /* White background */
-            color: #1f2937; /* Dark gray text */
+            font-family: monospace;
+            background-color: #ffffff;
+            color: #000000;
         }
+
+        /* General Card Styling */
         .game-card {
-            background-color: #f9fafb; /* Very light gray */
-            border: 1px solid #e5e7eb; /* Light gray border */
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            border: 1px solid #000000;
             cursor: pointer;
             overflow: hidden; 
+            position: relative; /* Needed for positioning the NEW tag */
+            background: #fff;
         }
+
         .game-card:hover {
-            transform: translateY(-8px);
-            border-color: #3b82f6; /* Blue on hover */
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            background-color: #f4f4f4;
         }
+
         .game-card img {
             width: 100%;
-            aspect-ratio: 1 / 1; /* This makes the image square */
+            aspect-ratio: 1 / 1;
             object-fit: cover;
-            background-color: #e5e7eb;
+            background-color: #eee;
+            border-bottom: 1px solid #000;
+            display: block;
         }
-        .game-card h2 {
-            padding: 1rem;
-            font-size: 1.5rem; /* Made the font size bigger */
-            font-weight: 600;
-            min-height: 80px; /* Adjusted height for bigger font */
+
+        /* BIG CARDS (Best Games) */
+        .game-card-large h2 {
+            padding: 1.5rem;
+            font-size: 2rem; 
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* SMALL CARDS (Other Games) */
+        .game-card-small h2 {
+            padding: 0.5rem;
+            font-size: 1rem;
+            font-weight: normal;
+            text-align: center;
+            min-height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
+            line-height: 1.2;
         }
+
+        /* The NEW Tag - Red Square with Exclamation Mark */
+        .new-tag {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 40px;
+            height: 40px;
+            background-color: #ef4444; /* Red */
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        /* Game View (Fullscreen) */
         .game-view {
             display: none;
             width: 100vw;
@@ -45,29 +80,32 @@
             position: fixed;
             top: 0;
             left: 0;
-            background-color: #ffffff; /* Solid white for fullscreen */
+            background-color: #ffffff;
             z-index: 50;
         }
+
         #game-frame {
             width: 100%;
             height: 100%;
             border: none; 
             background-color: #ffffff;
         }
+
         .back-button {
-            background-color: #2563eb; /* A nice blue */
+            background-color: #000;
             color: white;
-            font-weight: 600;
-            transition: background-color 0.2s, left 0s, right 0s, transform 0s;
-            position: fixed; /* Changed to fixed to float on top */
+            font-family: monospace;
+            padding: 10px 20px;
+            position: fixed;
             top: 1rem;
             left: 1rem;
-            border-radius: 8px; /* Added some rounding */
             border: none;
-            z-index: 60; /* Ensure it's on top of the iframe */
+            z-index: 60;
+            cursor: pointer;
         }
+        
         .back-button:hover {
-            background-color: #3b82f6; /* Lighter blue on hover */
+            background-color: #444;
         }
     </style>
 </head>
@@ -75,68 +113,129 @@
 
     <div id="game-menu">
         <header class="text-center mb-12">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Weather App Games</h1>
+            <h1 class="text-5xl font-bold mb-2">Weather duck games</h1>
+            <p class="text-xl">some games we made</p>
         </header>
 
-        <main class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <div class="game-card text-center" onclick="showGame('rpg-1-0.html')">
-                <img src="../assets/wdrpg.png" alt="Weather Duck RPG v1.0" onerror="this.onerror=null;this.src='https://placehold.co/300x300/e5e7eb/4b5563?text=Weather+Duck+RPG';">
-                <h2 class="text-gray-800">Weather Duck RPG v1.0</h2>
+        <!-- SECTION 1: BEST GAMES (BIG) -->
+        <div class="max-w-6xl mx-auto mb-16">
+            <h3 class="text-2xl font-bold mb-4 border-b border-black pb-2">Best Games</h3>
+            <div id="best-games-container" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Javascript will inject games here -->
             </div>
-            <div class="game-card text-center" onclick="showGame('rpg-1-1.html')">
-                <img src="../assets/wdrpg.png" alt="Weather Duck RPG v1.1" onerror="this.onerror=null;this.src='https://placehold.co/300x300/e5e7eb/4b5563?text=Weather+Duck+RPG';">
-                <h2 class="text-gray-800">Weather Duck RPG v1.1</h2>
+        </div>
+
+        <!-- SECTION 2: OTHER GAMES (SMALL) -->
+        <div class="max-w-6xl mx-auto">
+            <h3 class="text-xl mb-4 border-b border-black pb-2">Other Games</h3>
+            <!-- Grid is 2 cols on mobile, 4 on desktop -->
+            <div id="other-games-container" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <!-- Javascript will inject games here -->
             </div>
-            <div class="game-card text-center" onclick="showGame('rpg-2-0.html')">
-                <img src="../assets/wdrpg.png" alt="Weather Duck RPG v2.0" onerror="this.onerror=null;this.src='https://placehold.co/300x300/e5e7eb/4b5563?text=Weather+Duck+RPG';">
-                <h2 class="text-gray-800">Weather Duck RPG v2.0</h2>
-            </div>
-            <div class="game-card text-center" onclick="showGame('rpg-3-b.html')">
-                <img src="../assets/wdrpg.png" alt="Weather Duck RPG v3.BETA" onerror="this.onerror=null;this.src='https://placehold.co/300x300/e5e7eb/4b5563?text=Weather+Duck+RPG';">
-                <h2 class="text-gray-800">Weather Duck RPG v3.BETA</h2>
-            </div>
-            
-        </main>
+        </div>
     </div>
 
     <div id="game-view" class="game-view">
         <iframe id="game-frame" src="about:blank" allowfullscreen></iframe>
-        <button class="back-button px-6 py-3 text-xl" onclick="showMenu()">Back to Menu</button>
+        <button class="back-button" onclick="showMenu()">Back to Menu</button>
     </div>
 
     <script>
+        // ==========================================
+        // CONFIGURATION: ADD YOUR GAMES HERE
+        // ==========================================
+        
+        // 1. IMPORTANT GAMES (Shown Big at the top)
+        const bestGames = [
+            { 
+                title: "Weather Duck RPG v2.0", 
+                url: "frontend/rpg-2-0.html", 
+                img: "../assets/wdrpg.png",
+                isNew: false
+            },
+            { 
+                title: "Weather Duck RPG v3.b", 
+                url: "frontend/rpg-3-b.html", 
+                img: "../assets/wdrpg.png",
+                isNew: true
+            }
+        ];
+
+        // 2. UNIMPORTANT GAMES (Shown smaller below)
+        const otherGames = [
+            { title: "Weather Duck RPG v1.0", url: "frontend/rpg-1-0.html", img: "../assets/wdrpg.png", isNew: false },
+            { title: "Weather Duck RPG v1.1", url: "frontend/rpg-1-1.html", img: "../assets/wdrpg.png", isNew: false },
+        ];
+
+        // List of games that require the back button to be centered (special cases)
+        const centerButtonGames = ['asgore-dess.html', 'math-hell.html', '5d-platformer.html'];
+
+
+        // ==========================================
+        // RENDER LOGIC (Do not need to touch below)
+        // ==========================================
+
+        function renderGames() {
+            const bestContainer = document.getElementById('best-games-container');
+            const otherContainer = document.getElementById('other-games-container');
+
+            // Render Function
+            const createCard = (game, isLarge) => {
+                const cardClass = isLarge ? 'game-card-large' : 'game-card-small';
+                
+                // HTML Template
+                return `
+                <div class="game-card ${cardClass}" onclick="showGame('${game.url}')">
+                    ${game.isNew ? '<div class="new-tag">!</div>' : ''}
+                    <img src="${game.img}" alt="${game.title}" 
+                         onerror="this.onerror=null;this.src='https://placehold.co/${isLarge ? '600x600' : '300x300'}/eee/000?text=${encodeURIComponent(game.title)}';">
+                    <h2>${game.title}</h2>
+                </div>
+                `;
+            };
+
+            // Inject HTML
+            bestContainer.innerHTML = bestGames.map(game => createCard(game, true)).join('');
+            otherContainer.innerHTML = otherGames.map(game => createCard(game, false)).join('');
+        }
+
+        // Initialize display
+        renderGames();
+
+        // ==========================================
+        // VIEW CONTROLLER
+        // ==========================================
+
         const gameMenu = document.getElementById('game-menu');
         const gameView = document.getElementById('game-view');
         const gameFrame = document.getElementById('game-frame');
         const backButton = document.querySelector('.back-button');
 
-        const specialGames = ['frontend/asgore-dess.html', 'frontend/math-hell.html', 'frontend/5d-platformer.html'];
-
         function showGame(gameUrl) {
-            // Check if the current game needs the button in the center by checking the end of the string
             const gameFile = gameUrl.split('/').pop();
-            if (specialGames.map(s => s.split('/').pop()).includes(gameFile)) {
+            
+            // Check if this game is in the special center-button list
+            if (centerButtonGames.includes(gameFile)) {
                 backButton.style.left = '50%';
                 backButton.style.transform = 'translateX(-50%)';
                 backButton.style.right = 'auto';
             } else {
-                // Otherwise, ensure it's on the left
                 backButton.style.left = '1rem';
                 backButton.style.transform = 'none';
                 backButton.style.right = 'auto';
             }
 
-            document.body.style.overflow = 'hidden'; // Prevent scrolling behind the game
+            document.body.style.overflow = 'hidden';
             gameMenu.style.display = 'none';
             gameView.style.display = 'block';
-            gameFrame.src = gameUrl; // Load the selected game's HTML file
+            gameFrame.src = gameUrl;
         }
 
         function showMenu() {
-            document.body.style.overflow = ''; // Restore default scrolling
+            document.body.style.overflow = ''; 
             gameMenu.style.display = 'block';
             gameView.style.display = 'none';
-            gameFrame.src = 'about:blank'; // Unload the game to stop it from running
+            gameFrame.src = 'about:blank'; 
         }
     </script>
 </body>
