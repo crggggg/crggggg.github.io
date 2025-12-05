@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cave Delver - Roguelike Platformer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none; /* Prevent mobile scrolling */
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            image-rendering: pixelated; /* Retro look */
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 2px solid #555;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            color: white;
+            text-align: center;
+        }
+
+        #overlay h1 { font-size: 3rem; margin-bottom: 0.5rem; color: #ffcc00; }
+        #overlay p { font-size: 1.2rem; color: #ccc; margin-bottom: 2rem; max-width: 600px; line-height: 1.5; }
+        
+        button {
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: transform 0.1s, background 0.2s;
+            box-shadow: 0 5px 0 #2a60a2;
+        }
+
+        button:active {
+            transform: translateY(5px);
+            box-shadow: none;
+        }
+        
+        button:hover {
+            background: #5aa0f2;
+        }
+
+        .controls-hint {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="stat-box">Depth: <span id="depth-display">1</span></div>
+        <div class="stat-box">Health: <span id="health-display">100</span>%</div>
+        <div class="stat-box">Biome: <span id="biome-display">Mossy Caves</span></div>
+        <div class="stat-box" style="color:#ffd700">Gold: <span id="gold-display">0</span></div>
+        <div class="stat-box" id="quest-display" style="display:none; color: #ffeb3b;">Item: <span id="quest-item">None</span></div>
+    </div>
+
+    <div id="overlay">
+        <h1 id="overlay-title">CAVE DELVER</h1>
+        <p id="overlay-desc">Traverse infinite procedural caves. Mine terrain to create paths. Collect Gold blocks to heal. Find the portal (🌀) to descend deeper.</p>
+        <button id="start-btn">DESCEND</button>
+        <div class="controls-hint">
+            WASD / Arrows to Move • Space to Jump<br>
+            Mouse Click to Mine Terrain • K to Skip Level<br>
+            <span style="color: #ffeb3b">Find the Ancient Secret...</span>
+        </div>
+    </div>
+    
+    <!-- Toast Message Container -->
+    <div id="toast-msg" style="
+        position: absolute; 
+        top: 20%; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        color: white; 
+        font-size: 1.5rem; 
+        text-shadow: 2px 2px 0 #000; 
+        pointer-events: none; 
+        opacity: 0; 
+        transition: opacity 0.5s;">
+    </div>
+</div>
+
+<script>
+/**
+ * ENGINE CONSTANTS & SETUP
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const uiDepth = document.getElementById('depth-display');
+const uiHealth = document.getElementById('health-display');
+const uiBiome = document.getElementById('biome-display');
+const uiGold = document.getElementById('gold-display');
+const uiQuestBox = document.getElementById('quest-display');
+const uiQuestItem = document.getElementById('quest-item');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('start-btn');
+const toastEl = document.getElementById('toast-msg');
+
+// Game Settings
+const TILE_SIZE = 32;
+const GRAVITY = 0.5;
+const TERMINAL_VELOCITY = 12;
+const JUMP_FORCE = -9;
+const MOVE_SPEED = 5;
+const ACCELERATION = 0.8;
+const FRICTION = 0.6;
+const MINING_RANGE = 5 * TILE_SIZE; 
+
+// Tile Types
+const TILE_AIR = 0;
+const TILE_WALL = 1;
+const TILE_SPIKE = 2; 
+const TILE_EXIT = 3;  
+const TILE_GOLD = 4;  
+const TILE_BRICK = 5; 
+const TILE_EGG = 6;   // New Quest Item
+
+// Biomes Configuration
+const BIOMES = [
+    { name: "Mossy Caves",    style: "standard", pools: ["common", "ruin"],    colors: { bg: "#1a1a10", wall: "#3e4a36", wallDark: "#263022", hazard: "#8f3333", brick: "#5e615a" }, genParams: { fillPercent: 0.48, smooths: 5 } },
+    { name: "Icy Depths",     style: "crystal",  pools: ["common", "crystal"], colors: { bg: "#0f1520", wall: "#68889c", wallDark: "#455d6e", hazard: "#a1e6ff", brick: "#a3d9ff" }, genParams: { fillPercent: 0.45, smooths: 4 } },
+    { name: "Magma Core",     style: "standard", pools: ["common", "ruin"],    colors: { bg: "#200a0a", wall: "#63271d", wallDark: "#3d150e", hazard: "#ff5500", brick: "#4a3b39" }, genParams: { fillPercent: 0.50, smooths: 6 } },
+    { name: "Abyssal Void",   style: "organic",  pools: ["organic", "ruin"],   colors: { bg: "#050010", wall: "#3d2e5c", wallDark: "#231838", hazard: "#9900ff", brick: "#4b3d69" }, genParams: { fillPercent: 0.46, smooths: 3 } },
+    { name: "Crystal Caverns",style: "crystal",  pools: ["crystal"],           colors: { bg: "#1a0b1a", wall: "#c766c7", wallDark: "#853885", hazard: "#ff00ff", brick: "#f0d0f0" }, genParams: { fillPercent: 0.47, smooths: 4 } },
+    { name: "Fungal Marsh",   style: "organic",  pools: ["organic", "common"], colors: { bg: "#111a11", wall: "#6b8c42", wallDark: "#3d4d26", hazard: "#ccff00", brick: "#5c664d" }, genParams: { fillPercent: 0.49, smooths: 5 } },
+    { name: "Ancient Ruins",  style: "standard", pools: ["ruin", "common"],    colors: { bg: "#1a1610", wall: "#c2b280", wallDark: "#8a7d57", hazard: "#ff4444", brick: "#e6d8b8" }, genParams: { fillPercent: 0.44, smooths: 2 } },
+    { name: "Cyber Ruins",    style: "tech",     pools: ["tech"],              colors: { bg: "#000500", wall: "#003300", wallDark: "#001a00", hazard: "#ff0055", brick: "#00ff44" }, genParams: { fillPercent: 0.40, smooths: 8 } },
+    { name: "Bone Yard",      style: "organic",  pools: ["ruin", "organic"],   colors: { bg: "#141414", wall: "#e3e3e3", wallDark: "#999999", hazard: "#ff3333", brick: "#ffffff" }, genParams: { fillPercent: 0.48, smooths: 4 } },
+    { name: "Slime Sewers",   style: "tech",     pools: ["tech", "organic"],   colors: { bg: "#0d1a0d", wall: "#4d6633", wallDark: "#2a381c", hazard: "#00ff00", brick: "#3a4d3a" }, genParams: { fillPercent: 0.51, smooths: 5 } },
+    { name: "Golden Veins",   style: "standard", pools: ["common", "ruin"],    colors: { bg: "#1a1505", wall: "#ffd700", wallDark: "#b8860b", hazard: "#ff0000", brick: "#fff8dc" }, genParams: { fillPercent: 0.52, smooths: 5 } },
+    { name: "Obsidian Plains",style: "standard", pools: ["ruin", "common"],    colors: { bg: "#000000", wall: "#2e2e2e", wallDark: "#1a1a1a", hazard: "#9400d3", brick: "#404040" }, genParams: { fillPercent: 0.55, smooths: 3 } },
+    { name: "Cloud Layer",    style: "standard", pools: ["ruin", "common"],    colors: { bg: "#e6f7ff", wall: "#ffffff", wallDark: "#cceeff", hazard: "#ff9900", brick: "#f0f8ff" }, genParams: { fillPercent: 0.42, smooths: 6 } },
+    { name: "Flesh Pits",     style: "organic",  pools: ["organic"],           colors: { bg: "#260505", wall: "#b35959", wallDark: "#732626", hazard: "#ffff00", brick: "#d98c8c" }, genParams: { fillPercent: 0.53, smooths: 5 } }
+];
+
+// ... existing STRUCTURE_POOLS ...
+const STRUCTURE_POOLS = {
+    common: [
+        { width: 8, height: 2, layout: [[0,0,0,0,0,0,0,0],[5,5,5,5,5,5,5,5]] },
+        { width: 5, height: 4, layout: [[0,5,5,5,0],[5,0,0,0,5],[5,0,4,0,5],[5,5,5,5,5]] },
+        { width: 3, height: 3, layout: [[5,5,5],[5,4,5],[5,5,5]] }
+    ],
+    ruin: [
+        { width: 4, height: 8, layout: [[0,5,5,0],[0,5,5,0],[0,5,5,0],[0,5,5,0],[0,5,5,0],[0,5,5,0],[0,5,5,0],[5,5,5,5]] },
+        { width: 5, height: 4, layout: [[0,0,4,0,0],[0,5,5,5,0],[5,5,5,5,5],[1,1,1,1,1]] },
+        { width: 5, height: 5, layout: [[0,0,0,0,5],[0,0,0,5,5],[0,0,5,5,5],[0,5,5,5,5],[5,5,5,5,5]] }
+    ],
+    tech: [
+        { width: 6, height: 5, layout: [[5,5,5,5,5,5],[5,0,0,0,0,5],[5,0,0,4,0,5],[5,0,0,0,0,5],[5,5,5,5,5,5]] },
+        { width: 3, height: 10, layout: [[5,0,5],[5,0,5],[5,0,5],[5,0,5],[5,0,5],[5,0,5],[5,0,5],[5,0,5],[5,0,5],[5,0,5]] },
+        { width: 4, height: 6, layout: [[5,5,5,5],[5,2,2,5],[5,0,0,5],[5,0,0,5],[5,4,0,5],[5,5,5,5]] }
+    ],
+    crystal: [
+        { width: 6, height: 6, layout: [[0,5,5,5,5,0],[5,5,0,0,5,5],[5,0,0,4,0,5],[5,0,4,4,0,5],[5,5,0,0,5,5],[0,5,5,5,5,0]] },
+        { width: 3, height: 7, layout: [[0,5,0],[0,5,0],[0,5,0],[5,5,5],[5,5,5],[5,5,5],[5,5,5]] }
+    ],
+    organic: [
+        { width: 5, height: 5, layout: [[0,5,5,5,0],[5,5,0,5,5],[5,0,4,0,5],[5,5,0,5,5],[0,5,5,5,0]] },
+        { width: 6, height: 4, layout: [[5,0,0,0,0,5],[5,5,0,0,5,5],[0,5,5,5,5,0],[0,0,5,5,0,0]] }
+    ]
+};
+
+let gameState = {
+    running: false,
+    level: 1,
+    loop: 1, // 1 = Normal, 2 = Hunted by Worm
+    width: 0,
+    height: 0,
+    map: [],
+    camera: { x: 0, y: 0, shake: 0 },
+    player: null,
+    worm: null, // Giant Worm Entity
+    particles: [],
+    mouse: { x: 0, y: 0, down: false },
+    currentBiome: 0,
+    eggState: 'none', // 'none', 'carrying', 'hatched'
+    gold: 0
+};
+
+const keys = { left: false, right: false, up: false, down: false };
+
+window.addEventListener('keydown', (e) => {
+    // Debug: Skip Level
+    if (e.code === 'KeyK') {
+        nextLevel();
+        return;
+    }
+
+    // Hatch Egg Interaction
+    if (e.code === 'KeyH') {
+        attemptHatch();
+    }
+
+    if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+    if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+    if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') {
+        if (!keys.up && gameState.player && gameState.player.grounded) {
+            gameState.player.vy = JUMP_FORCE;
+            createDust(gameState.player.x + gameState.player.width/2, gameState.player.y + gameState.player.height, 10, '#fff');
+        }
+        keys.up = true;
+    }
+    if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = true;
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+    if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+    if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.up = false;
+    if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.down = false;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    gameState.mouse.x = e.clientX - rect.left;
+    gameState.mouse.y = e.clientY - rect.top;
+});
+canvas.addEventListener('mousedown', () => gameState.mouse.down = true);
+canvas.addEventListener('mouseup', () => gameState.mouse.down = false);
+
+function showToast(text) {
+    toastEl.innerText = text;
+    toastEl.style.opacity = 1;
+    setTimeout(() => { toastEl.style.opacity = 0; }, 3000);
+}
+
+function attemptHatch() {
+    if (gameState.eggState !== 'carrying') {
+        showToast("You don't have an egg!");
+        return;
+    }
+    
+    const biome = BIOMES[gameState.currentBiome];
+    
+    if (biome.name !== "Flesh Pits") {
+        showToast("It's too dry for the egg to hatch here...");
+    } else {
+        // Hatch!
+        gameState.eggState = 'hatched';
+        uiQuestItem.innerText = "HATCHED (RUN!)";
+        uiQuestItem.style.color = "#ff0000";
+        showToast("THE EGG HATCHES! RUN!");
+        
+        // Spawn the Worm immediately
+        gameState.worm = new Worm(gameState.player.x, gameState.player.y - 400);
+        gameState.camera.shake = 30;
+    }
+}
+
+/**
+ * GAME CLASSES
+ */
+
+class Player {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 20;
+        this.height = 28;
+        this.vx = 0;
+        this.vy = 0;
+        this.grounded = false;
+        this.health = 100;
+        this.invincible = 0;
+    }
+
+    update() {
+        if (keys.left) this.vx -= ACCELERATION;
+        else if (keys.right) this.vx += ACCELERATION;
+        else this.vx *= FRICTION;
+
+        this.vx = Math.max(Math.min(this.vx, MOVE_SPEED), -MOVE_SPEED);
+        this.vy += GRAVITY;
+        this.vy = Math.min(this.vy, TERMINAL_VELOCITY);
+
+        this.x += this.vx;
+        this.handleCollision(true);
+        this.grounded = false;
+        this.y += this.vy;
+        this.handleCollision(false);
+
+        if (this.invincible > 0) this.invincible--;
+        this.checkHazards();
+
+        if (this.y > gameState.height * TILE_SIZE) this.takeDamage(100);
+    }
+
+    handleCollision(horizontal) {
+        const top = Math.floor(this.y / TILE_SIZE);
+        const bottom = Math.floor((this.y + this.height - 0.1) / TILE_SIZE);
+        const left = Math.floor(this.x / TILE_SIZE);
+        const right = Math.floor((this.x + this.width - 0.1) / TILE_SIZE);
+
+        for (let y = top; y <= bottom; y++) {
+            for (let x = left; x <= right; x++) {
+                const tile = getTile(x, y);
+                if (tile === TILE_WALL || tile === TILE_BRICK) {
+                    if (horizontal) {
+                        if (this.vx > 0) { this.x = x * TILE_SIZE - this.width; this.vx = 0; }
+                        else if (this.vx < 0) { this.x = (x + 1) * TILE_SIZE; this.vx = 0; }
+                    } else {
+                        if (this.vy > 0) { this.y = y * TILE_SIZE - this.height; this.vy = 0; this.grounded = true; }
+                        else if (this.vy < 0) { this.y = (y + 1) * TILE_SIZE; this.vy = 0; }
+                    }
+                    return;
+                } else if (tile === TILE_EXIT) {
+                    nextLevel(); return;
+                } else if (tile === TILE_GOLD) {
+                    setTile(x, y, TILE_AIR);
+                    this.heal(20);
+                    gameState.gold += 50;
+                    uiGold.innerText = gameState.gold;
+                    createDust(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, 10, "#FFD700");
+                } else if (tile === TILE_EGG) {
+                    setTile(x, y, TILE_AIR);
+                    gameState.eggState = 'carrying';
+                    uiQuestBox.style.display = 'inline-block';
+                    uiQuestItem.innerText = "Ancient Egg (Press H)";
+                    showToast("You found an Ancient Egg! Press H to try hatching it.");
+                }
+            }
+        }
+    }
+
+    checkHazards() {
+        if (this.invincible > 0) return;
+        const cx = this.x + this.width/2;
+        const cy = this.y + this.height/2;
+        const gx = Math.floor(cx / TILE_SIZE);
+        const gy = Math.floor(cy / TILE_SIZE);
+
+        if (getTile(gx, gy) === TILE_SPIKE) {
+            this.takeDamage(20);
+            this.vy = -6;
+            this.vx = (cx - (gx * TILE_SIZE + TILE_SIZE/2)) > 0 ? 5 : -5;
+        }
+        
+        // Worm Damage
+        if (gameState.worm && gameState.worm.checkCollision(this)) {
+            this.takeDamage(30);
+            this.vy = -8;
+            this.vx = (this.x - gameState.worm.segments[0].x) > 0 ? 10 : -10;
+        }
+    }
+
+    takeDamage(amount) {
+        this.health -= amount;
+        this.invincible = 60;
+        uiHealth.innerText = Math.max(0, this.health);
+        gameState.camera.shake = 10;
+        if (this.health <= 0) gameOver();
+    }
+    
+    heal(amount) {
+        this.health = Math.min(100, this.health + amount);
+        uiHealth.innerText = this.health;
+    }
+
+    draw() {
+        ctx.fillStyle = this.invincible > 0 && Math.floor(Date.now() / 50) % 2 === 0 ? 'rgba(255,255,255,0.5)' : '#ffcc00';
+        ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.width, this.height);
+        
+        // Eyes
+        ctx.fillStyle = "black";
+        if (this.vx > 0) ctx.fillRect(this.x + 12, this.y + 6, 4, 4);
+        else if (this.vx < 0) ctx.fillRect(this.x + 4, this.y + 6, 4, 4);
+        else { ctx.fillRect(this.x + 6, this.y + 6, 4, 4); ctx.fillRect(this.x + 14, this.y + 6, 4, 4); }
+        
+        // Draw Carrying Egg
+        if (gameState.eggState === 'carrying') {
+            ctx.fillStyle = "#e0e0e0";
+            ctx.beginPath();
+            ctx.ellipse(this.x + this.width/2, this.y - 8, 6, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}
+
+class Worm {
+    constructor(x, y) {
+        this.segments = [];
+        const segCount = 20;
+        for(let i=0; i<segCount; i++) {
+            this.segments.push({x: x, y: y + i*15});
+        }
+        this.speed = 3.5; // Slightly slower than player max speed
+    }
+    
+    update() {
+        if (!gameState.player) return;
+        
+        // Head moves towards player
+        const head = this.segments[0];
+        const dx = (gameState.player.x + gameState.player.width/2) - head.x;
+        const dy = (gameState.player.y + gameState.player.height/2) - head.y;
+        const angle = Math.atan2(dy, dx);
+        
+        head.x += Math.cos(angle) * this.speed;
+        head.y += Math.sin(angle) * this.speed;
+        
+        // Destroy terrain
+        const gridX = Math.floor(head.x / TILE_SIZE);
+        const gridY = Math.floor(head.y / TILE_SIZE);
+        const tile = getTile(gridX, gridY);
+        if (tile === TILE_WALL || tile === TILE_BRICK) {
+             setTile(gridX, gridY, TILE_AIR);
+             createDust(gridX*TILE_SIZE+16, gridY*TILE_SIZE+16, 2, "#444");
+        }
+        
+        // Body follows
+        for (let i = 1; i < this.segments.length; i++) {
+            const cur = this.segments[i];
+            const prev = this.segments[i-1];
+            
+            const dist = Math.sqrt((prev.x - cur.x)**2 + (prev.y - cur.y)**2);
+            if (dist > 15) {
+                const angle = Math.atan2(prev.y - cur.y, prev.x - cur.x);
+                cur.x = prev.x - Math.cos(angle) * 15;
+                cur.y = prev.y - Math.sin(angle) * 15;
+            }
+        }
+    }
+    
+    checkCollision(player) {
+        // Only head hurts
+        const head = this.segments[0];
+        const dx = head.x - (player.x + player.width/2);
+        const dy = head.y - (player.y + player.height/2);
+        return (dx*dx + dy*dy) < (25*25);
+    }
+    
+    draw() {
+        // Draw segments
+        for (let i = this.segments.length - 1; i >= 0; i--) {
+            const s = this.segments[i];
+            ctx.fillStyle = i === 0 ? "#ff0000" : "#8b0000"; // Red head
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, i === 0 ? 18 : 12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Texture
+            ctx.strokeStyle = "#500000";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x; this.y = y;
+        this.vx = (Math.random() - 0.5) * 6;
+        this.vy = (Math.random() - 0.5) * 6;
+        this.life = 1.0;
+        this.color = color;
+        this.size = Math.random() * 3 + 1;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy; this.vy += 0.2; this.life -= 0.02;
+    }
+    draw() {
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+/**
+ * PROCEDURAL GENERATION
+ */
+
+function generateLevel(levelIndex) {
+    const biome = BIOMES[(levelIndex - 1) % BIOMES.length];
+    gameState.currentBiome = (levelIndex - 1) % BIOMES.length;
+    
+    const w = 60 + (levelIndex * 2);
+    const h = 40 + (levelIndex * 2);
+    gameState.width = w;
+    gameState.height = h;
+
+    // Noise & Automata
+    let map = [];
+    for (let y = 0; y < h; y++) {
+        map[y] = [];
+        for (let x = 0; x < w; x++) {
+            map[y][x] = (x===0||x===w-1||y===0||y===h-1) ? TILE_WALL : (Math.random() < biome.genParams.fillPercent ? TILE_WALL : TILE_AIR);
+        }
+    }
+    for (let i = 0; i < biome.genParams.smooths; i++) map = smoothMap(map, w, h);
+    gameState.map = map;
+
+    // Structures
+    let validStructures = [];
+    biome.pools.forEach(poolName => {
+        if (STRUCTURE_POOLS[poolName]) validStructures = validStructures.concat(STRUCTURE_POOLS[poolName]);
+    });
+    const numStructures = Math.floor((w * h) / 300);
+    for (let i = 0; i < numStructures; i++) {
+        const struct = validStructures[Math.floor(Math.random() * validStructures.length)];
+        placeStructure(map, Math.floor(Math.random()*(w-struct.width-2))+1, Math.floor(Math.random()*(h-struct.height-2))+1, struct);
+    }
+
+    // Spawn Player
+    let spawnFound = false;
+    for (let y = 5; y < h-5; y++) {
+        for (let x = 5; x < w-5; x++) {
+            if (map[y][x] === TILE_AIR && map[y+1][x] === TILE_WALL) {
+                gameState.player = new Player(x * TILE_SIZE, y * TILE_SIZE);
+                spawnFound = true; break;
+            }
+        }
+        if (spawnFound) break;
+    }
+    if (!spawnFound) { // Failsafe
+        const mx = Math.floor(w/2), my = Math.floor(h/2);
+        for(let fy=my-2; fy<=my+2; fy++) for(let fx=mx-2; fx<=mx+2; fx++) map[fy][fx] = TILE_AIR;
+        gameState.player = new Player(mx*TILE_SIZE, my*TILE_SIZE);
+    }
+
+    // Spawn Exit
+    let exitFound = false;
+    for (let y = h - 3; y > 5; y--) {
+        for (let x = w - 3; x > 5; x--) {
+            if (map[y][x] === TILE_AIR && map[y+1][x] === TILE_WALL) {
+                if (Math.abs(x*TILE_SIZE - gameState.player.x) + Math.abs(y*TILE_SIZE - gameState.player.y) > (w*TILE_SIZE)/2) {
+                    map[y][x] = TILE_EXIT;
+                    exitFound = true; break;
+                }
+            }
+        }
+        if (exitFound) break;
+    }
+    if (!exitFound) { map[h-2][w-2] = TILE_EXIT; map[h-2][w-3] = TILE_AIR; }
+
+    // Spawn Ancient Egg (Specific to Quest)
+    if (biome.name === "Ancient Ruins" && gameState.eggState === 'none') {
+        // Find Exit Location first
+        let ex = -1, ey = -1;
+        for(let y=0; y<h; y++) {
+            for(let x=0; x<w; x++) {
+                if(map[y][x] === TILE_EXIT) { ex = x; ey = y; break; }
+            }
+            if(ex !== -1) break;
+        }
+
+        // Try to place near the exit (within ~10-15 blocks)
+        if (ex !== -1) {
+            for (let i=0; i<200; i++) {
+                const rx = ex + Math.floor((Math.random() - 0.5) * 30); // Search radius
+                const ry = ey + Math.floor((Math.random() - 0.5) * 30);
+                
+                if (rx > 5 && rx < w-5 && ry > 5 && ry < h-5 && (rx !== ex || ry !== ey)) {
+                    if (map[ry][rx] === TILE_AIR && map[ry+1][rx] === TILE_WALL) {
+                        map[ry][rx] = TILE_EGG;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Spawn Worm (If Loop 2)
+    gameState.worm = null;
+    if (gameState.loop === 2) {
+        // Spawn worm far away but chasing
+        gameState.worm = new Worm(100, 100);
+        showToast("THE WORM HUNTS YOU...");
+    }
+
+    // Spikes
+    for (let y = 0; y < h-1; y++) {
+        for (let x = 0; x < w; x++) {
+            if (map[y][x] === TILE_AIR && map[y+1][x] === TILE_WALL) {
+                if (Math.random() < 0.03 && map[y][x] !== TILE_EXIT && map[y][x] !== TILE_GOLD && map[y][x] !== TILE_EGG) {
+                    if (Math.abs(x*TILE_SIZE - gameState.player.x) > 100) map[y][x] = TILE_SPIKE;
+                }
+            }
+        }
+    }
+}
+
+function smoothMap(map, w, h) {
+    let newMap = JSON.parse(JSON.stringify(map));
+    for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+            let n = 0;
+            for (let ny = y - 1; ny <= y + 1; ny++) for (let nx = x - 1; nx <= x + 1; nx++) if ((nx!==x||ny!==y) && (map[ny][nx]===TILE_WALL||map[ny][nx]===TILE_BRICK)) n++;
+            if (n > 4) newMap[y][x] = TILE_WALL; else if (n < 4) newMap[y][x] = TILE_AIR;
+        }
+    }
+    return newMap;
+}
+
+function placeStructure(map, x, y, struct) {
+    if (x + struct.width >= map[0].length || y + struct.height >= map.length) return;
+    for (let sy = 0; sy < struct.height; sy++) for (let sx = 0; sx < struct.width; sx++) {
+        const t = struct.layout[sy][sx];
+        if (t !== 0) map[y + sy][x + sx] = t; else map[y+sy][x+sx] = TILE_AIR;
+    }
+}
+
+function getTile(x, y) {
+    if (x < 0 || x >= gameState.width || y < 0 || y >= gameState.height) return TILE_WALL;
+    return gameState.map[y][x];
+}
+
+function setTile(x, y, type) {
+    if (x < 0 || x >= gameState.width || y < 0 || y >= gameState.height) return;
+    gameState.map[y][x] = type;
+}
+
+/**
+ * GAME LOOP & LOGIC
+ */
+
+function initGame() {
+    resize();
+    gameState.level = 1;
+    gameState.loop = 1;
+    gameState.gold = 0;
+    gameState.eggState = 'none';
+    gameState.player = null; // Reset player
+    uiQuestBox.style.display = 'none';
+    uiGold.innerText = "0";
+    startLevel();
+    gameState.running = true;
+    requestAnimationFrame(gameLoop);
+}
+
+function startLevel() {
+    generateLevel(gameState.level);
+    gameState.particles = [];
+    uiDepth.innerText = gameState.level + (gameState.loop > 1 ? " (LOOP 2)" : "");
+    uiBiome.innerText = BIOMES[gameState.currentBiome].name;
+    if (gameState.level === 1 && gameState.loop === 1) gameState.player.health = 100;
+    uiHealth.innerText = gameState.player.health;
+}
+
+function nextLevel() {
+    const currentBiomeName = BIOMES[gameState.currentBiome].name;
+    
+    // LOOP LOGIC
+    if (gameState.eggState === 'hatched' && currentBiomeName === "Flesh Pits") {
+        if (gameState.loop === 1) {
+            // Trigger Loop 2
+            gameState.loop = 2;
+            gameState.level = 1; // Reset to level 1
+            // gameState.currentBiome will be recalculated in generateLevel based on level index (0)
+            
+            showOverlay("THE CYCLE RENEWS", "The worm chases you into the depths. You are back at the beginning, but you are not safe.");
+            startLevel();
+            return;
+        } else if (gameState.loop === 2) {
+            // True Victory
+            gameWin();
+            return;
+        }
+    }
+
+    gameState.level++;
+    startLevel();
+}
+
+function showOverlay(title, desc) {
+    gameState.running = false;
+    document.getElementById('overlay-title').innerText = title;
+    document.getElementById('overlay-desc').innerText = desc;
+    startBtn.innerText = "CONTINUE";
+    overlay.style.display = "flex";
+}
+
+function gameOver() {
+    gameState.running = false;
+    document.getElementById('overlay-title').innerText = "GAME OVER";
+    document.getElementById('overlay-desc').innerText = `You perished at depth ${gameState.level}.`;
+    startBtn.innerText = "TRY AGAIN";
+    overlay.style.display = "flex";
+}
+
+function gameWin() {
+    gameState.running = false;
+    document.getElementById('overlay-title').innerText = "TRUE VICTORY";
+    document.getElementById('overlay-desc').innerText = "You have escaped the cycle and defeated the ancient curse. The worm is sealed away forever.";
+    startBtn.innerText = "PLAY AGAIN";
+    overlay.style.display = "flex";
+    
+    // Reset Globals
+    gameState.loop = 1;
+    gameState.eggState = 'none';
+}
+
+function createDust(x, y, count, color) {
+    for (let i = 0; i < count; i++) gameState.particles.push(new Particle(x, y, color));
+}
+
+function handleMining() {
+    if (!gameState.mouse.down || !gameState.player) return;
+    const wx = gameState.mouse.x + gameState.camera.x;
+    const wy = gameState.mouse.y + gameState.camera.y;
+    const dx = wx - (gameState.player.x + gameState.player.width/2);
+    const dy = wy - (gameState.player.y + gameState.player.height/2);
+    
+    if (Math.sqrt(dx*dx + dy*dy) <= MINING_RANGE) {
+        const gx = Math.floor(wx / TILE_SIZE);
+        const gy = Math.floor(wy / TILE_SIZE);
+        const t = getTile(gx, gy);
+        if (t === TILE_WALL || t === TILE_BRICK) {
+            setTile(gx, gy, TILE_AIR);
+            const b = BIOMES[gameState.currentBiome];
+            createDust(gx*TILE_SIZE+16, gy*TILE_SIZE+16, 5, t === TILE_BRICK ? b.colors.brick : b.colors.wall);
+        }
+    }
+}
+
+function updateCamera() {
+    if (!gameState.player) return;
+    const tx = gameState.player.x - canvas.width / 2 + gameState.player.width / 2;
+    const ty = gameState.player.y - canvas.height / 2 + gameState.player.height / 2;
+    gameState.camera.x += (tx - gameState.camera.x) * 0.1;
+    gameState.camera.y += (ty - gameState.camera.y) * 0.1;
+
+    if (gameState.camera.shake > 0) {
+        gameState.camera.x += (Math.random() - 0.5) * gameState.camera.shake;
+        gameState.camera.y += (Math.random() - 0.5) * gameState.camera.shake;
+        gameState.camera.shake *= 0.9;
+        if (gameState.camera.shake < 0.5) gameState.camera.shake = 0;
+    }
+}
+
+function gameLoop() {
+    if (!gameState.running) return;
+    if (gameState.player) {
+        gameState.player.update();
+        handleMining();
+        updateCamera();
+    }
+    if (gameState.worm) gameState.worm.update();
+
+    for (let i = gameState.particles.length - 1; i >= 0; i--) {
+        gameState.particles[i].update();
+        if (gameState.particles[i].life <= 0) gameState.particles.splice(i, 1);
+    }
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+function render() {
+    const biome = BIOMES[gameState.currentBiome];
+    ctx.fillStyle = biome.colors.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(-Math.floor(gameState.camera.x), -Math.floor(gameState.camera.y));
+
+    const sc = Math.floor(gameState.camera.x / TILE_SIZE);
+    const ec = sc + (canvas.width / TILE_SIZE) + 1;
+    const sr = Math.floor(gameState.camera.y / TILE_SIZE);
+    const er = sr + (canvas.height / TILE_SIZE) + 1;
+
+    for (let y = sr; y <= er; y++) {
+        for (let x = sc; x <= ec; x++) {
+            const t = getTile(x, y);
+            const tx = x * TILE_SIZE;
+            const ty = y * TILE_SIZE;
+
+            if (t === TILE_WALL) {
+                ctx.fillStyle = biome.colors.wall; ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
+                ctx.fillStyle = biome.colors.wallDark; ctx.fillRect(tx + 4, ty + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+            } else if (t === TILE_BRICK) {
+                ctx.fillStyle = biome.colors.brick;
+                if (biome.style === 'crystal') {
+                    ctx.save(); ctx.globalAlpha = 0.8; ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE); ctx.globalAlpha = 1.0;
+                    ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.beginPath(); ctx.moveTo(tx, ty + TILE_SIZE); ctx.lineTo(tx + TILE_SIZE/2, ty); ctx.lineTo(tx + TILE_SIZE, ty + TILE_SIZE); ctx.fill(); ctx.restore();
+                } else if (biome.style === 'tech') {
+                    ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE); ctx.fillStyle = "#000"; ctx.fillRect(tx, ty, TILE_SIZE, 2); ctx.fillRect(tx, ty, 2, TILE_SIZE);
+                    ctx.fillStyle = "rgba(100,255,100,0.5)"; ctx.fillRect(tx + 8, ty + 8, 4, 16); ctx.fillRect(tx + 8, ty + 14, 16, 4);
+                } else if (biome.style === 'organic') {
+                    ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE); ctx.fillStyle = "rgba(0,0,0,0.3)";
+                    ctx.beginPath(); ctx.arc(tx + 16, ty + 16, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(tx + 6, ty + 6, 4, 0, Math.PI*2); ctx.fill();
+                } else {
+                    ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE); ctx.fillStyle = "rgba(0,0,0,0.2)";
+                    ctx.fillRect(tx, ty + 10, TILE_SIZE, 2); ctx.fillRect(tx, ty + 22, TILE_SIZE, 2); ctx.fillRect(tx + 10, ty, 2, 10); ctx.fillRect(tx + 20, ty + 12, 2, 10);
+                }
+            } else if (t === TILE_SPIKE) {
+                ctx.fillStyle = biome.colors.hazard; ctx.beginPath(); ctx.moveTo(tx, ty + TILE_SIZE); ctx.lineTo(tx + TILE_SIZE / 2, ty + 5); ctx.lineTo(tx + TILE_SIZE, ty + TILE_SIZE); ctx.fill();
+            } else if (t === TILE_EXIT) {
+                ctx.fillStyle = '#aa00ff'; ctx.beginPath(); ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2, TILE_SIZE/2, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx + TILE_SIZE/2, ty + TILE_SIZE/2, (Date.now() / 10) % (TILE_SIZE/2), 0, Math.PI * 2); ctx.stroke();
+            } else if (t === TILE_GOLD) {
+                ctx.fillStyle = '#FFD700'; ctx.fillRect(tx + 8, ty + 8, 16, 16); ctx.fillStyle = '#FFF'; ctx.fillRect(tx + 10, ty + 10, 6, 6);
+            } else if (t === TILE_EGG) {
+                // Render Egg
+                ctx.fillStyle = "#e0e0e0"; 
+                ctx.beginPath(); ctx.ellipse(tx + TILE_SIZE/2, ty + TILE_SIZE/2, 12, 16, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = "#d4b0b0"; // Spots
+                ctx.beginPath(); ctx.arc(tx+12, ty+10, 3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(tx+20, ty+20, 2, 0, Math.PI*2); ctx.fill();
+            }
+        }
+    }
+
+    if (gameState.worm) gameState.worm.draw();
+    if (gameState.player) gameState.player.draw();
+    gameState.particles.forEach(p => p.draw());
+
+    // Render Mining Cursor
+    if (gameState.running && gameState.player && gameState.mouse) {
+        const wx = gameState.mouse.x + gameState.camera.x;
+        const wy = gameState.mouse.y + gameState.camera.y;
+        if (Math.sqrt(((wx-(gameState.player.x+10))**2) + ((wy-(gameState.player.y+14))**2)) <= MINING_RANGE) {
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"; ctx.lineWidth = 2;
+            ctx.strokeRect(Math.floor(wx/TILE_SIZE)*TILE_SIZE, Math.floor(wy/TILE_SIZE)*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+    }
+
+    ctx.restore();
+
+    // Lighting/Vignette
+    const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 100, canvas.width / 2, canvas.height / 2, canvas.width);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.85)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+startBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    if (!gameState.running && gameState.loop === 1) initGame();
+    else if (!gameState.running) { gameState.running = true; requestAnimationFrame(gameLoop); } // Continue button
+});
+resize();
+</script>
+</body>
+</html>
