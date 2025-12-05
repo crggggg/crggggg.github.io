@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Water Ro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'VT323', monospace;
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #111;
+            display: block;
+            border: 2px solid #333;
+        }
+        .ui-box {
+            border: 2px solid #fff;
+            background-color: rgba(0, 0, 0, 0.9);
+            position: absolute;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .dialogue-box {
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 150px;
+            display: none; /* Hidden by default */
+            font-size: 24px;
+            line-height: 1.4;
+        }
+        #battle-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: none; /* Hidden by default */
+        }
+        #battle-ui {
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 170px;
+        }
+        #player-stats-battle {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            font-size: 22px;
+        }
+        .hp-bar-container {
+            width: 100px;
+            height: 20px;
+            background-color: #555;
+            border: 1px solid #fff;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .hp-bar {
+            height: 100%;
+            background-color: #ffc700;
+            transition: width 0.5s ease-in-out;
+        }
+        .prompt {
+            position: absolute;
+            bottom: 15px;
+            right: 25px;
+            font-size: 20px;
+            animation: blink 1.5s infinite;
+        }
+        #battle-menu button, .act-menu button {
+            background: none;
+            border: none;
+            color: white;
+            font-family: 'VT323', monospace;
+            font-size: 24px;
+            text-align: left;
+            padding: 2px 20px;
+            cursor: pointer;
+        }
+        #battle-menu button.selected, .act-menu button.selected {
+            background-color: #fff;
+            color: #000;
+        }
+        #attack-minigame {
+            position: absolute;
+            bottom: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 30px;
+            border: 2px solid white;
+            background: #333;
+            display: none;
+        }
+        #attack-cursor {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 5px;
+            height: 100%;
+            background: red;
+        }
+        #attack-sweet-spot {
+            position: absolute;
+            left: 70%;
+            top: 0;
+            width: 15%;
+            height: 100%;
+            background: rgba(0, 255, 0, 0.5);
+        }
+        #defense-box {
+            position: absolute;
+            border: 2px solid white;
+            display: none;
+        }
+        #player-soul {
+            position: absolute;
+            width: 20px; height: 20px;
+            background-color: red;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+
+        @keyframes hit-flash {
+            0%, 100% { background-color: red; }
+            50% { background-color: white; }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen">
+
+    <div id="game-container" class="relative rounded-lg overflow-hidden shadow-lg">
+        <canvas id="gameCanvas"></canvas>
+        <div id="dialogueBox" class="dialogue-box ui-box">
+            <p id="dialogueText"></p>
+            <span class="prompt">Press [E]</span>
+        </div>
+        <div id="secret-input-display" class="absolute top-5 right-5 text-4xl text-yellow-400" style="display: none;"></div>
+        <div id="battle-container">
+            <div id="battle-ui" class="ui-box">
+                <div id="battle-log" class="text-2xl h-full w-full absolute top-0 left-0 p-4"></div>
+                <div id="battle-menu" class="absolute top-1/2 -translate-y-1/2 left-8 flex flex-col space-y-2">
+                    <button data-action="FIGHT">FIGHT</button>
+                    <button data-action="ACT">ACT</button>
+                    <button data-action="ITEM">ITEM</button>
+                    <button data-action="SPARE">SPARE</button>
+                </div>
+                 <div id="player-stats-battle">
+                    <span>ASOR</span>
+                    <span>HP</span>
+                    <div class="hp-bar-container">
+                        <div id="player-hp-bar" class="hp-bar"></div>
+                    </div>
+                    <span id="player-hp-text">100/100</span>
+                </div>
+            </div>
+            <div id="attack-minigame">
+                <div id="attack-sweet-spot"></div>
+                <div id="attack-cursor"></div>
+            </div>
+            <div id="defense-box">
+                <div id="player-soul"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        let canvasSize = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+        gameContainer.style.width = `${canvasSize}px`; gameContainer.style.height = `${canvasSize}px`;
+        canvas.width = canvasSize; canvas.height = canvasSize;
+
+        // --- UI Elements ---
+        const dialogueBox = document.getElementById('dialogueBox'), dialogueText = document.getElementById('dialogueText');
+        const battleContainer = document.getElementById('battle-container'), battleLog = document.getElementById('battle-log');
+        const battleMenu = document.getElementById('battle-menu');
+        const attackMinigame = document.getElementById('attack-minigame'), attackCursor = document.getElementById('attack-cursor');
+        const defenseBox = document.getElementById('defense-box'), playerSoul = document.getElementById('player-soul');
+        const secretDisplay = document.getElementById('secret-input-display');
+
+        // --- Player & Game State ---
+        const player = {
+            x: canvas.width / 2, y: canvas.height - 60, size: canvas.width * 0.04, speed: 5, color: '#00FF00',
+            hp: 100, maxHp: 100, attackPower: 10, heals: 3,
+            soul: { x: 0, y: 0, speed: 4 }
+        };
+        const gameState = {
+            currentScene: 'library', dialogueIndex: 0, inDialogue: false, inBattle: false, interactionTarget: null, gameOver: false,
+            enemy: null, battleState: 'PLAYER_CHOICE', battleMenuIndex: 0, actMenuIndex: 0, enemyPacified: false, secretBossDefeated: false,
+            coolerBossDefeated: false,
+        };
+        const keys = {};
+        let projectiles = [];
+        let secretInput = '';
+        const secretCode = 'JOHN';
+        let waterCrushInterval = null;
+
+        // --- Enemies ---
+        const enemies = {
+            water_droplet: {
+                name: 'Water Droplet', hp: 80, maxHp: 80, attackPower: 8, color: '#00BFFF', size: canvas.width * 0.06, isCircle: true,
+                state: 'wary', pacifyState: 'calm',
+                acts: ['Check', 'Whisper', 'Hum', 'Poke'],
+                actLogic: (act, state) => {
+                    switch(state) {
+                        case 'wary':
+                            if (act === 'Whisper') return { newState: 'curious', response: 'It leans in, seeming to listen.' };
+                            if (act === 'Poke') return { newState: 'agitated', response: 'It recoils angrily! Its attack rose!' };
+                            break;
+                        case 'curious':
+                            if (act === 'Hum') return { newState: 'content', response: 'The droplet jiggles happily to your tune.' };
+                            break;
+                        case 'content':
+                            if (act === 'Hum') return { newState: 'calm', response: 'It resonates with your melody, completely calm.' };
+                            break;
+                        case 'agitated':
+                            if (act === 'Whisper') return { newState: 'wary', response: 'Your soft words seem to soothe its anger.' };
+                            break;
+                    }
+                    return { newState: state, response: 'Nothing seems to happen.' };
+                },
+                attackPatterns: ['drip', 'splash_up', 'slanted_rain']
+            },
+            water_bottle: {
+                name: 'Water Bottle', hp: 90, maxHp: 90, attackPower: 10, color: '#87CEEB', size: canvas.width * 0.04, isCircle: false,
+                 state: 'sealed', pacifyState: 'refreshed',
+                acts: ['Check', 'Read Label', 'Shake', 'Open Cap'],
+                actLogic: (act, state) => {
+                    switch(state) {
+                        case 'sealed':
+                            if (act === 'Read Label') return { newState: 'understood', response: '"Pure, natural spring water." You understand it better.' };
+                            if (act === 'Shake') return { newState: 'fizzing', response: 'It fizzes aggressively! Its attack rose!' };
+                            break;
+                        case 'understood':
+                             if (act === 'Open Cap') return { newState: 'opened', response: 'A gentle sigh of air escapes. It seems relieved.' };
+                             break;
+                        case 'opened':
+                            if (act === 'Read Label') return { newState: 'refreshed', response: 'You appreciate its quality. It seems fulfilled and calm.' };
+                            break;
+                        case 'fizzing':
+                            if (act === 'Open Cap') return { newState: 'sealed', response: 'You release the pressure. It settles down.' };
+                            break;
+                    }
+                    return { newState: state, response: 'It doesn\'t react.' };
+                },
+                attackPatterns: ['squirt', 'cap_throw', 'spill']
+            },
+            water_cooler: {
+                name: 'Water Cooler', hp: 160, maxHp: 160, attackPower: 12, color: '#ADD8E6', size: canvas.width * 0.1, isCircle: false,
+                 state: 'idle', pacifyState: 'peaceful',
+                acts: ['Check', 'Listen', 'Pat', 'Encourage'],
+                actLogic: (act, state) => {
+                    switch(state) {
+                        case 'idle':
+                            if (act === 'Listen') return { newState: 'bubbling', response: 'You hear the faint gurgle of bubbles within.' };
+                            if (act === 'Pat') return { newState: 'annoyed', response: 'It rumbles ominously. Its attack rose!' };
+                            break;
+                        case 'bubbling':
+                             if (act === 'Encourage') return { newState: 'proud', response: 'It stands a little taller, seemingly proud of its water.' };
+                             break;
+                        case 'proud':
+                            if (act === 'Listen') return { newState: 'peaceful', response: 'You listen again, appreciating its calm inner workings.' };
+                            break;
+                        case 'annoyed':
+                            if (act === 'Encourage') return { newState: 'idle', response: 'Your kind words calm it down.' };
+                            break;
+                    }
+                    return { newState: state, response: 'It doesn\'t seem to care.' };
+                },
+                attackPatterns: ['stream', 'geyser', 'bubble_burst']
+            },
+             silhouette_boss: { // Kept the old system for the boss as it's a secret one-off
+                name: '???', hp: 300, maxHp: 300, attackPower: 15, color: '#111', size: canvas.width * 0.06, isCircle: false,
+                pacifyValue: 0, usedActs: new Set(),
+                acts: ['Check', 'Stare', 'Ponder', 'Reach Out'], 
+                actResponses: { 'Stare': 'The silhouette stares back into your soul.', 'Ponder': 'You ponder its existence. It seems to resonate.', 'Reach Out': 'It recoils slightly, but a flicker of light appears within it.' },
+                attackPatterns: ['shadow_blades', 'dark_tendrils', 'void_pulse']
+            }
+        };
+        
+        // --- SCENES & DIALOGUE ---
+        const scenes = {
+            library: { 
+                interactables: {
+                    bookshelf: { x: 50, y: 100, width: 40, height: 150, color: '#654321', dialogue: "A shelf full of books. The smell of old paper is comforting." },
+                    desk: { x: canvas.width - 100, y: 120, width: 100, height: 60, color: '#8B4513', dialogue: "My usual study desk. A half-read book on Asorian history sits here." },
+                    globe: { x: canvas.width - 80, y: canvas.height - 100, width: 50, height: 50, color: '#3498DB', dialogue: "A globe of the world. So many places I've yet to see." }
+                },
+                package: { x: canvas.width / 2, y: canvas.height / 2, size: canvas.width * 0.08, color: '#FF00FF', interacted: false },
+                door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }, 
+                dialogue: ["I was sitting in the library at school like normal...", "Then I saw a giant package in the middle of the room. It seems to be vibrating.", "I should go look at it."]
+            },
+            library_destroyed: {
+                 interactables: {
+                    bookshelf: { x: 50, y: 100, width: 40, height: 150, color: '#4d3319', dialogue: "The bookshelf is shattered. Soaked books are strewn everywhere." },
+                    desk: { x: canvas.width - 100, y: 120, width: 100, height: 60, color: '#603808', dialogue: "My desk is overturned. The book is gone, washed away." },
+                    globe: { x: canvas.width - 80, y: canvas.height - 100, width: 50, height: 50, color: '#24689A', dialogue: "The globe is cracked, half-filled with sloshing water." }
+                },
+                door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#603808' },
+                dialogue: ["When I opened my eyes, the library was destroyed. Water everywhere...", "I have to get out of here."]
+            },
+            hallway: { 
+                roamingEnemies: [], 
+                waters: [], 
+                door: { x: canvas.width / 2, y: 15, size: canvas.width * 0.1, height: 10, color: '#8B4513' }
+            },
+            battle: {},
+            storage: { dialogue: ["I came to a supply storage. I'll use my water bottle to open it...", "*click*", "WHOA... I'm falling!"] },
+            magic_world: { silhouette: { x: canvas.width / 2, y: 100, size: canvas.width * 0.05, color: '#222' }, dialogue: ["I landed on something wet... I was in some magical wall.", "I looked around and saw a dark silhouette."] },
+            prophecy: { dialogue: ["Silhouette: 'Do not be afraid. I am your friend. Do you want to hear a prophecy?'", "Asor: '...Yes?'", "Silhouette: 'When the sky is filled with water... And the water covers the world's edge...'", "Silhouette: 'A student, a bottle, and a power from the water...'", "Suddenly, the water rushed in with immense power..."] },
+            end: { 
+                dialogue: ["The water crushed me...", "The mysterious figure screamed: 'G, here sat again, we had killed Greece!'", "THE END"],
+                secretDialogue: ["You defeated the silhouette...", "Its power fades, but the prophecy holds.", "The water still crushed you...", "THE END?"]
+            }
+        };
+
+        // --- Event Listeners ---
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (gameState.inBattle) { handleBattleInput(e.key); } 
+            else if (gameState.currentScene === 'prophecy' && gameState.inDialogue) { handleSecretInput(e.key); }
+        });
+        window.addEventListener('keyup', (e) => {
+             keys[e.key] = false;
+             if(e.key.toLowerCase() === 'e' && !gameState.inBattle) handleInteraction();
+        });
+
+        // --- Dialogue & Interaction Logic ---
+        function startDialogue(d) { gameState.inDialogue = true; gameState.dialogueIndex = 0; dialogueBox.style.display = 'block'; displayNextMessage(d); }
+        function displayNextMessage(d) { if (gameState.dialogueIndex < d.length) { dialogueText.textContent = d[gameState.dialogueIndex++]; } else { endDialogue(); } }
+        function endDialogue() { 
+            gameState.inDialogue = false; 
+            dialogueBox.style.display = 'none'; 
+            if (gameState.currentScene === 'prophecy') { secretInput = ''; secretDisplay.style.display = 'none'; }
+            handlePostDialogueEvent(); 
+        }
+        function handleInteraction() {
+            if (gameState.gameOver) return;
+            if (gameState.inDialogue) {
+                let d = scenes[gameState.currentScene].dialogue;
+                if (gameState.currentScene === 'end' && gameState.secretBossDefeated) { d = scenes.end.secretDialogue; }
+                displayNextMessage(d);
+                return; 
+            }
+            if (gameState.interactionTarget) {
+                if (gameState.interactionTarget.dialogue) { // Generic interactable
+                    startDialogue([gameState.interactionTarget.dialogue]);
+                    gameState.interactionTarget = null;
+                    return;
+                }
+                switch (gameState.interactionTarget) {
+                    case 'package': transitionToDestroyedLibrary(); break;
+                    case 'library_door': 
+                        gameState.currentScene = 'hallway';
+                        player.x = canvas.width/2; player.y = canvas.height - 60;
+                        initializeHallwayScene();
+                        break;
+                    case 'hallway_door':
+                        if (!gameState.coolerBossDefeated) {
+                            startBattle(enemies.water_cooler);
+                        } else {
+                             gameState.currentScene = 'storage'; 
+                             startDialogue(scenes.storage.dialogue);
+                        }
+                        break;
+                    case 'silhouette': 
+                        gameState.currentScene = 'prophecy'; 
+                        secretInput = ''; secretDisplay.textContent = ''; secretDisplay.style.display = 'block';
+                        startDialogue(scenes.prophecy.dialogue); 
+                        break;
+                }
+                gameState.interactionTarget = null;
+            }
+        }
+        function handlePostDialogueEvent() { 
+            switch(gameState.currentScene) {
+                case 'storage':
+                    setTimeout(() => {
+                        gameState.currentScene = 'magic_world';
+                        startDialogue(scenes.magic_world.dialogue);
+                        player.x = canvas.width/2; player.y = canvas.height - 60;
+                    }, 1500);
+                    break;
+                case 'prophecy':
+                    let waterLevel = canvas.height;
+                    waterCrushInterval = setInterval(() => {
+                        waterLevel -= 10;
+                        if (waterLevel <= 0) {
+                            clearInterval(waterCrushInterval);
+                            gameState.currentScene = 'end';
+                            startDialogue(scenes.end.dialogue);
+                        }
+                    }, 50);
+                    break;
+                case 'end':
+                    gameState.gameOver = true;
+                    dialogueText.textContent = gameState.secretBossDefeated ? "THE END?" : "THE END. Refresh to play again.";
+                    document.querySelector('.prompt').style.display = 'none';
+                    break;
+            }
+        }
+        
+        // --- SECRET BOSS TRIGGER ---
+        function handleSecretInput(key) {
+            if (key.length === 1 && key.match(/[a-z]/i)) {
+                secretInput += key.toUpperCase();
+                if (secretInput.length > secretCode.length) { secretInput = secretInput.substring(secretInput.length - secretCode.length); }
+                secretDisplay.textContent = secretInput;
+                if (secretInput.endsWith(secretCode)) { secretInput = ''; secretDisplay.style.display = 'none'; startSecretBattle(); }
+            }
+        }
+        function startSecretBattle() {
+            gameState.inDialogue = false; dialogueBox.style.display = 'none';
+            if (waterCrushInterval) clearInterval(waterCrushInterval);
+            const bossData = { ...enemies.silhouette_boss, usedActs: new Set(), pacifyValue: 0 };
+            startBattle(bossData);
+        }
+
+        // --- SCENE TRANSITIONS & OVERWORLD ---
+        function transitionToDestroyedLibrary() {
+            scenes.library.package.interacted = true;
+            let flashes = 0;
+            const explosionInterval = setInterval(() => {
+                document.body.style.backgroundColor = flashes % 2 === 0 ? '#fff' : '#00BFFF';
+                flashes++;
+                if (flashes > 5) {
+                    clearInterval(explosionInterval);
+                    document.body.style.backgroundColor = '#000';
+                    gameState.currentScene = 'library_destroyed';
+                    player.x = canvas.width/2; player.y = canvas.height - 60;
+                    startDialogue(scenes.library_destroyed.dialogue);
+                }
+            }, 100);
+        }
+
+        function initializeHallwayScene() {
+            scenes.hallway.roamingEnemies = [];
+            scenes.hallway.waters = [];
+            for (let i = 0; i < 2; i++) {
+                spawnOverworldEnemy('water_droplet');
+                spawnOverworldEnemy('water_bottle');
+            }
+            for (let i = 0; i < 15; i++) { // More water hazards
+                 const hazard = { x: Math.random() * canvas.width, y: -20 - Math.random() * canvas.height, width: 5, height: 30, speed: 2 + Math.random() * 2 };
+                 scenes.hallway.waters.push(hazard);
+            }
+        }
+
+        function spawnOverworldEnemy(type) {
+             let x, y, dist;
+            do {
+                x = Math.random() * canvas.width;
+                y = Math.random() * (canvas.height - 100);
+                const dx = player.x - x;
+                const dy = player.y - y;
+                dist = Math.sqrt(dx*dx + dy*dy);
+            } while (dist < 200); // Don't spawn too close
+            scenes.hallway.roamingEnemies.push({ type: type, x: x, y: y, speed: 0.8 + Math.random() * 0.5 });
+        }
+        
+        function respawnOverworldEnemies() {
+            scenes.hallway.roamingEnemies.forEach(enemy => {
+                let x, y, dist;
+                do {
+                    x = Math.random() * canvas.width;
+                    y = Math.random() * (canvas.height - 100);
+                    const dx = player.x - x;
+                    const dy = player.y - y;
+                    dist = Math.sqrt(dx*dx + dy*dy);
+                } while (dist < 200);
+                enemy.x = x;
+                enemy.y = y;
+            });
+        }
+        
+        // --- BATTLE SYSTEM ---
+        function startBattle(enemyData, overworldEnemy) {
+            let enemyInstance;
+            if (enemyData.name === '???') { // Handle secret boss
+                enemyInstance = { ...enemyData };
+            } else {
+                enemyInstance = { ...enemyData, state: enemyData.state };
+            }
+
+            if (overworldEnemy) {
+                const index = scenes.hallway.roamingEnemies.indexOf(overworldEnemy);
+                if (index > -1) scenes.hallway.roamingEnemies.splice(index, 1);
+            }
+
+            gameState.inBattle = true;
+            gameState.currentScene = 'battle';
+            gameState.enemy = enemyInstance;
+            gameState.enemyPacified = false;
+            battleContainer.style.display = 'block';
+            updateBattleUI();
+            playerChoicePhase(`* ${gameState.enemy.name} appeared!`);
+        }
+
+        function handleBattleInput(key) {
+            if (gameState.battleState === 'PLAYER_CHOICE' || gameState.battleState === 'PLAYER_ACT') {
+                const menuId = gameState.battleState === 'PLAYER_CHOICE' ? 'battle-menu' : 'act-menu';
+                const menuItems = document.querySelectorAll(`#${menuId} button`);
+                let currentIndex = gameState.battleState === 'PLAYER_CHOICE' ? gameState.battleMenuIndex : gameState.actMenuIndex;
+
+                if (key === 'ArrowUp') currentIndex = (currentIndex - 1 + menuItems.length) % menuItems.length;
+                if (key === 'ArrowDown') currentIndex = (currentIndex + 1) % menuItems.length;
+                
+                if (gameState.battleState === 'PLAYER_CHOICE') gameState.battleMenuIndex = currentIndex; else gameState.actMenuIndex = currentIndex;
+                if (key.toLowerCase() === 'z' || key === 'Enter' || key === ' ') menuItems[currentIndex].click();
+                if (key.toLowerCase() === 'x' && gameState.battleState === 'PLAYER_ACT') playerChoicePhase(`* ${gameState.enemy.name} is ${gameState.enemy.state}.`);
+                updateMenuSelection();
+            } else if (gameState.battleState === 'PLAYER_ATTACK') {
+                 if (key.toLowerCase() === 'z' || key === 'Enter' || key === ' ') gameState.battleState = 'ATTACK_RESOLVE';
+            }
+        }
+
+        function playerChoicePhase(logText) {
+            gameState.battleState = 'PLAYER_CHOICE';
+            battleLog.innerHTML = logText;
+            battleMenu.style.display = 'flex';
+            const actMenu = document.getElementById('act-menu');
+            if (actMenu) actMenu.remove();
+            updateMenuSelection();
+        }
+
+        function updateMenuSelection() {
+            const menuId = gameState.battleState === 'PLAYER_CHOICE' ? 'battle-menu' : 'act-menu';
+            const menuItems = document.querySelectorAll(`#${menuId} button`);
+            let currentIndex = gameState.battleState === 'PLAYER_CHOICE' ? gameState.battleMenuIndex : gameState.actMenuIndex;
+            menuItems.forEach((btn, index) => btn.classList.toggle('selected', index === currentIndex));
+            if (menuId === 'battle-menu') {
+                const spareBtn = document.querySelector('button[data-action="SPARE"]');
+                spareBtn.style.color = gameState.enemyPacified ? '#ffc700' : '#fff';
+            }
+        }
+
+        battleMenu.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON' || gameState.battleState !== 'PLAYER_CHOICE') return;
+            const action = e.target.dataset.action;
+            switch(action) {
+                case 'FIGHT': gameState.battleState = 'PLAYER_ATTACK'; attackMinigame.style.display = 'block'; attackCursor.style.left = '0%'; attackProgress = 0; break;
+                case 'ACT':
+                    gameState.battleState = 'PLAYER_ACT'; gameState.actMenuIndex = 0; battleMenu.style.display = 'none';
+                    const actMenu = document.createElement('div');
+                    actMenu.id = 'act-menu';
+                    actMenu.className = 'absolute top-1/2 -translate-y-1/2 left-8 flex flex-col space-y-2';
+                    gameState.enemy.acts.forEach(act => {
+                        const btn = document.createElement('button');
+                        btn.textContent = act;
+                        btn.onclick = () => handleAct(act);
+                        actMenu.appendChild(btn);
+                    });
+                    battleContainer.appendChild(actMenu);
+                    updateMenuSelection();
+                    break;
+                case 'ITEM':
+                    if (player.heals > 0) {
+                        gameState.battleState = 'WAITING'; // Lock input
+                        player.heals--;
+                        const healAmount = Math.floor(player.maxHp * 0.4);
+                        player.hp = Math.min(player.maxHp, player.hp + healAmount);
+                        updateBattleUI();
+                        enemyTurnPhase(`* You used a water bottle and healed ${healAmount} HP.`);
+                    } else { playerChoicePhase('* You have no items left!'); }
+                    break;
+                case 'SPARE':
+                    if (gameState.enemyPacified) winBattle();
+                    else playerChoicePhase('* You can\'t spare the enemy yet!');
+                    break;
+            }
+        });
+        
+        function handleAct(act) {
+            gameState.battleState = 'WAITING'; // Lock input
+            let logText = `* You selected ${act}. `;
+            let attackBoost = 1;
+            
+            if (gameState.enemy.actLogic) {
+                const result = gameState.enemy.actLogic(act, gameState.enemy.state);
+                gameState.enemy.state = result.newState;
+                logText += result.response;
+                if (gameState.enemy.state.includes('agitated') || gameState.enemy.state.includes('fizzing') || gameState.enemy.state.includes('annoyed')) {
+                    attackBoost = 1.5;
+                }
+                if (gameState.enemy.state === gameState.enemy.pacifyState) {
+                    gameState.enemyPacified = true;
+                    logText += `\n* ${gameState.enemy.name} is completely pacified.`;
+                }
+            } else { // Fallback for secret boss
+                if (gameState.enemy.actResponses[act]) {
+                    if (!gameState.enemy.usedActs.has(act)) {
+                        gameState.enemy.usedActs.add(act);
+                        gameState.enemy.pacifyValue += 34;
+                    }
+                    logText += gameState.enemy.actResponses[act];
+                    if (gameState.enemy.pacifyValue >= 100) {
+                        gameState.enemyPacified = true;
+                        logText += `\n* ${gameState.enemy.name} seems ready to give up.`;
+                    }
+                } else { logText = `* ${gameState.enemy.name} - ATK ${gameState.enemy.attackPower} HP ${gameState.enemy.hp}/${gameState.enemy.maxHp}`; }
+            }
+            
+            enemyTurnPhase(logText, attackBoost);
+        }
+
+        function enemyTurnPhase(logText, attackMultiplier = 1) {
+            battleLog.innerHTML = logText.replace(/\n/g, '<br>');
+            battleMenu.style.display = 'none';
+            const actMenu = document.getElementById('act-menu');
+            if(actMenu) actMenu.remove();
+            
+            setTimeout(() => {
+                gameState.battleState = 'ENEMY_ATTACK'; projectiles = [];
+                const boxSize = 150;
+                defenseBox.style.display = 'block';
+                defenseBox.style.width = `${boxSize}px`; defenseBox.style.height = `${boxSize}px`;
+                defenseBox.style.left = `calc(50% - ${boxSize/2}px)`; defenseBox.style.top = `calc(50% - ${boxSize/2}px)`;
+                player.soul.x = boxSize / 2 - 10; player.soul.y = boxSize / 2 - 10;
+                generateEnemyAttack(attackMultiplier);
+                setTimeout(() => {
+                    defenseBox.style.display = 'none';
+                    projectiles.forEach(p => p.element.remove());
+                    projectiles = [];
+                    if (player.hp <= 0) loseBattle();
+                    else playerChoicePhase(`* ${gameState.enemy.name} is ${gameState.enemy.state || 'waiting'}.`);
+                }, 10000); // Longer attack duration
+            }, 3000); 
+        }
+
+        function generateEnemyAttack(attackMultiplier) {
+            const patterns = gameState.enemy.attackPatterns;
+            const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+            const boxSize = 150;
+            const power = gameState.enemy.attackPower * attackMultiplier;
+
+            if (pattern === 'drip') for (let i = 0; i < 7; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: -10, vx: 0, vy: 1.5 + Math.random(), type: 'circle', power }); }, i * 400);
+            if (pattern === 'splash_up') for (let i = 0; i < 10; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * (boxSize - 10), y: boxSize + 10, vx: 0, vy: -2, type: 'circle', power }); }, i * 200);
+            if (pattern === 'slanted_rain') for (let i = 0; i < 12; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -10, y: Math.random() * boxSize, vx: 1.5, vy: 1.5, type: 'rect', power }); }, i * 200);
+            
+            if (pattern === 'squirt') for (let i = 0; i < 7; i++) setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: boxSize/2, y: 0, vx: (Math.random()-0.5)*2, vy: 3, type: 'rect', power }); }, i * 250);
+            if (pattern === 'cap_throw') { const p = createProjectile({ x: 0, y: boxSize - 20, vx: 4, vy: -5, type: 'circle', power }); p.bounces = 5; }
+            if (pattern === 'spill') { const p = createProjectile({ x: boxSize/2, y: boxSize - 10, vx: 0, vy: 0, type: 'puddle', power, width: 10, height: 10 }); p.growth = 1.04; }
+
+            if (pattern === 'stream') for (let i = 0; i < 40; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; const y = (boxSize/2) + Math.sin(i * 0.2) * (boxSize/2.2); createProjectile({ x: -10, y: y, vx: 3, vy: 0, type: 'rect', power, lifetime: 2000 }); }, i * 200);
+            if (pattern === 'geyser') for (let i = 0; i < 3; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; const x = Math.random() * (boxSize - 20); for(let j=0; j<8; j++){ setTimeout(()=>createProjectile({ x: x, y: boxSize + 10, vx: 0, vy: -4, type: 'circle', power }), j*50);}}, i * 2000);
+            if (pattern === 'bubble_burst') for (let i = 0; i < 4; i++) setTimeout(() => { const bubble = createProjectile({ x: Math.random() * (boxSize-30), y: Math.random() * (boxSize-30), vx: (Math.random()-0.5), vy: (Math.random()-0.5), type: 'circle', power: 0, color: 'rgba(0,255,255,0.5)', width:30, height:30 }); setTimeout(() => { if(gameState.battleState !== 'ENEMY_ATTACK') return; for(let j=0; j<8; j++){ const angle = (j/8)*2*Math.PI; createProjectile({ x: bubble.x, y: bubble.y, vx: Math.cos(angle)*2, vy: Math.sin(angle)*2, type: 'circle', power });} bubble.element.remove(); }, 2000);}, i * 1500);
+
+            if (pattern === 'shadow_blades') for (let i = 0; i < 5; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: -20, y: (Math.random() * (boxSize - 10)), vx: 3 + Math.random(), vy: 0, type: 'rect', color: '#333', power }); createProjectile({ x: (Math.random() * (boxSize - 10)), y: -20, vx: 0, vy: 3 + Math.random(), type: 'rect', color: '#333', power }); }, i * 700);
+            if (pattern === 'dark_tendrils') for (let i = 0; i < 4; i++) setTimeout(() => { if (gameState.battleState !== 'ENEMY_ATTACK') return; createProjectile({ x: Math.random() * boxSize, y: -10, vx: 0, vy: 0.8, type: 'rect', color: '#333', follow: true, power }); }, i * 1200);
+            if (pattern === 'void_pulse') for (let i = 0; i < 3; i++) setTimeout(() => { for(let j=0; j<16; j++) { const angle = (j/16) * 2 * Math.PI; createProjectile({ x: boxSize/2, y: boxSize/2, vx: Math.cos(angle) * 1.5, vy: Math.sin(angle) * 1.5, type: 'circle', color: '#333', power }); } }, 2000 + (i * 1500));
+        }
+
+        function createProjectile(config) {
+            const p = document.createElement('div');
+            p.style.position = 'absolute';
+            p.style.backgroundColor = config.color || 'cyan';
+            
+            let width = config.width || (config.type === 'circle' ? 10 : 20);
+            let height = config.height || (config.type === 'circle' ? 10 : 5);
+            if (config.type === 'circle') p.style.borderRadius = '50%';
+            else if (config.type === 'puddle') { p.style.borderRadius = '30%'; p.style.opacity = '0.7'; }
+            
+            p.style.width = `${width}px`; p.style.height = `${height}px`;
+
+            const projectileData = { element: p, ...config, width, height, createdAt: Date.now() };
+            projectiles.push(projectileData);
+            defenseBox.appendChild(p);
+            return projectileData;
+        }
+
+        function winBattle() {
+            gameState.battleState = 'BATTLE_OVER'; battleLog.textContent = `* You won!`;
+            setTimeout(() => {
+                if (gameState.enemy.name === 'Water Cooler') gameState.coolerBossDefeated = true;
+                if (gameState.enemy.name === '???') gameState.secretBossDefeated = true;
+                endBattle();
+            }, 1500);
+        }
+        function loseBattle() { gameState.gameOver = true; battleLog.textContent = "* You were defeated..."; }
+        function endBattle() {
+             gameState.inBattle = false; battleContainer.style.display = 'none';
+             if (gameState.secretBossDefeated) { gameState.currentScene = 'end'; startDialogue(scenes.end.secretDialogue); return; }
+             gameState.currentScene = 'hallway'; // Return to hallway after battle
+             respawnOverworldEnemies(); 
+        }
+
+        function updateBattleUI() {
+            const playerHPPct = (player.hp / player.maxHp) * 100;
+            document.getElementById('player-hp-bar').style.width = `${Math.max(0, playerHPPct)}%`;
+            document.getElementById('player-hp-text').textContent = `${player.hp}/${player.maxHp}`;
+        }
+
+        // --- Drawing & Game Loop ---
+        let attackProgress = 0;
+        function gameLoop() {
+            if (!gameState.inBattle && !gameState.inDialogue && !gameState.gameOver) {
+                // Overworld movement
+                if (keys['ArrowUp'] || keys['w']) player.y = Math.max(0, player.y - player.speed);
+                if (keys['ArrowDown'] || keys['s']) player.y = Math.min(canvas.height - player.size / 2, player.y + player.speed);
+                if (keys['ArrowLeft'] || keys['a']) player.x = Math.max(0, player.x - player.speed);
+                if (keys['ArrowRight'] || keys['d']) player.x = Math.min(canvas.width - player.size / 2, player.x + player.speed);
+                
+                if (gameState.currentScene === 'hallway') {
+                    // Update and check collisions for roaming enemies
+                    scenes.hallway.roamingEnemies.forEach(enemy => {
+                        const enemyData = enemies[enemy.type];
+                        const dx = player.x - enemy.x; const dy = player.y - enemy.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < 150) { // Short detection radius
+                            if (dist > 0) { enemy.x += (dx/dist) * enemy.speed; enemy.y += (dy/dist) * enemy.speed; }
+                        }
+                        if (dist < (player.size + enemyData.size) / 2) { startBattle(enemies[enemy.type], enemy); }
+                    });
+                    scenes.hallway.waters.forEach((hazard) => { hazard.y += hazard.speed; if (hazard.y > canvas.height) { hazard.y = -20 - Math.random() * 50; hazard.x = Math.random() * canvas.width; } });
+                }
+                checkCollisions();
+            } else if (gameState.inBattle) {
+                if (gameState.battleState === 'PLAYER_ATTACK') {
+                    attackProgress += 2.5; attackCursor.style.left = `${attackProgress}%`;
+                    if (attackProgress >= 100) attackProgress = 0;
+                } else if (gameState.battleState === 'ATTACK_RESOLVE') {
+                    attackMinigame.style.display = 'none';
+                    const sweetSpot = document.getElementById('attack-sweet-spot');
+                    const sweetSpotLeft = parseFloat(sweetSpot.style.left); const sweetSpotWidth = parseFloat(sweetSpot.style.width);
+                    let damage = Math.floor(Math.random() * player.attackPower) + 5;
+                    if (attackProgress > sweetSpotLeft && attackProgress < sweetSpotLeft + sweetSpotWidth) damage *= 2;
+                    gameState.enemy.hp -= damage; updateBattleUI();
+                    if (gameState.enemy.hp <= 0) { winBattle(); } else { enemyTurnPhase(`* You attacked! Dealt ${damage} damage.`); }
+                    gameState.battleState = 'WAITING';
+                } else if (gameState.battleState === 'ENEMY_ATTACK') {
+                    const boxBounds = defenseBox.getBoundingClientRect();
+                    if (keys['ArrowUp'] || keys['w']) player.soul.y = Math.max(0, player.soul.y - player.soul.speed);
+                    if (keys['ArrowDown'] || keys['s']) player.soul.y = Math.min(boxBounds.height - playerSoul.clientHeight, player.soul.y + player.soul.speed);
+                    if (keys['ArrowLeft'] || keys['a']) player.soul.x = Math.max(0, player.soul.x - player.soul.speed);
+                    if (keys['ArrowRight'] || keys['d']) player.soul.x = Math.min(boxBounds.width - playerSoul.clientWidth, player.soul.x + player.soul.speed);
+                    playerSoul.style.left = `${player.soul.x}px`; playerSoul.style.top = `${player.soul.y}px`;
+
+                    projectiles.forEach((p, index) => {
+                        if (p.follow) { const dx = player.soul.x - p.x; const dy = player.soul.y - p.y; const dist = Math.sqrt(dx*dx+dy*dy); if (dist>0) { p.vx += (dx/dist)*0.1; p.vy += (dy/dist)*0.1; } }
+                        if (p.growth) { p.width *= p.growth; p.height *= p.growth; p.x -= (p.width * (p.growth - 1))/2; p.y -= (p.height*(p.growth - 1))/2; p.element.style.width = `${p.width}px`; p.element.style.height = `${p.height}px`; p.element.style.left = `${p.x}px`; p.element.style.top = `${p.y}px`; }
+                        else { p.x += p.vx; p.y += p.vy; }
+
+                        if(p.bounces > 0 && (p.y < 0 || p.y > boxBounds.height - p.height)) { p.vy *= -1; p.bounces--; }
+                        if(p.bounces > 0 && (p.x < 0 || p.x > boxBounds.width - p.width)) { p.vx *= -1; p.bounces--; }
+                        
+                        p.element.style.left = `${p.x}px`; p.element.style.top = `${p.y}px`;
+                        if (p.x < -40 || p.x > boxBounds.width + 20 || p.y < -40 || p.y > boxBounds.height + 20 || (p.lifetime && Date.now() - p.createdAt > p.lifetime)) { p.element.remove(); projectiles.splice(index, 1); return; }
+                        
+                        const soulSize = 20;
+                        if ( player.soul.x < p.x + p.width && player.soul.x + soulSize > p.x && player.soul.y < p.y + p.height && soulSize + player.soul.y > p.y ) {
+                            player.hp -= p.power; if(player.hp < 0) player.hp = 0;
+                            updateBattleUI();
+                            if(p.type !== 'puddle') { p.element.remove(); projectiles.splice(index, 1); }
+                            playerSoul.style.animation = 'hit-flash 0.3s'; setTimeout(() => playerSoul.style.animation = '', 300);
+                        }
+                    });
+                }
+            }
+            clearCanvas(); drawScene();
+            if (!gameState.inBattle && !gameState.inDialogue) { drawPlayer(); }
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function checkCollisions() {
+            gameState.interactionTarget = null; let target = null;
+            const scene = scenes[gameState.currentScene];
+
+            if (scene.interactables) {
+                for (const key in scene.interactables) {
+                    target = scene.interactables[key];
+                    if (player.x > target.x && player.x < target.x + target.width && player.y > target.y && player.y < target.y + target.height) {
+                         gameState.interactionTarget = target;
+                         return;
+                    }
+                }
+            }
+
+            switch(gameState.currentScene) {
+                case 'library':
+                    target = scene.package;
+                    if (!target.interacted && Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'package'; }
+                    break;
+                case 'library_destroyed':
+                    target = scene.door;
+                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.height) / 2) { gameState.interactionTarget = 'library_door'; }
+                    break;
+                case 'hallway':
+                    target = scene.door;
+                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.height) / 2) { gameState.interactionTarget = 'hallway_door'; }
+                    break;
+                case 'magic_world':
+                    target = scene.silhouette;
+                    if (Math.abs(player.x - target.x) < (player.size + target.size) / 2 && Math.abs(player.y - target.y) < (player.size + target.size) / 2) { gameState.interactionTarget = 'silhouette'; }
+                    break;
+            }
+        }
+        
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            switch(gameState.currentScene) {
+                case 'library': ctx.fillStyle = '#4a2c2a'; break;
+                case 'library_destroyed': ctx.fillStyle = '#3b2f2f'; break;
+                case 'hallway': ctx.fillStyle = '#333'; break;
+                case 'battle': ctx.fillStyle = '#000'; break;
+                case 'storage': ctx.fillStyle = '#111'; break;
+                case 'magic_world': ctx.fillStyle = '#2d0f2d'; break;
+                case 'prophecy': ctx.fillStyle = '#2d0f2d'; break;
+                case 'end': ctx.fillStyle = '#000'; break;
+            }
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size);
+            if (gameState.interactionTarget) {
+                ctx.fillStyle = 'white'; ctx.font = '20px VT323'; ctx.textAlign = 'center';
+                ctx.fillText('[E]', player.x, player.y - player.size);
+            }
+        }
+
+        function drawScene() {
+            ctx.save();
+            const scene = scenes[gameState.currentScene];
+
+            if (scene.interactables) {
+                 for (const key in scene.interactables) {
+                    const obj = scene.interactables[key];
+                    ctx.fillStyle = obj.color;
+                    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+                 }
+            }
+
+            switch(gameState.currentScene) {
+                case 'library':
+                    const pkg = scene.package;
+                    if (!pkg.interacted) { ctx.fillStyle = pkg.color; ctx.fillRect(pkg.x - pkg.size / 2, pkg.y - pkg.size / 2, pkg.size, pkg.size); }
+                    const door_lib = scene.door; ctx.fillStyle = door_lib.color; ctx.fillRect(door_lib.x - door_lib.size / 2, door_lib.y - door_lib.height / 2, door_lib.size, door_lib.height);
+                    break;
+                case 'library_destroyed':
+                    const door_lib_d = scene.door; ctx.fillStyle = door_lib_d.color; ctx.fillRect(door_lib_d.x - door_lib_d.size / 2, door_lib_d.y - door_lib_d.height / 2, door_lib_d.size, door_lib_d.height);
+                    break;
+                case 'hallway':
+                    scene.roamingEnemies.forEach(enemy => {
+                        const data = enemies[enemy.type];
+                        ctx.fillStyle = data.color;
+                        if (data.isCircle) { ctx.beginPath(); ctx.arc(enemy.x, enemy.y, data.size / 3, 0, Math.PI * 2); ctx.fill(); }
+                        else { ctx.fillRect(enemy.x - data.size / 3, enemy.y - data.size / 3, data.size/1.5, data.size/1.5 * 1.5); }
+                    });
+                    scene.waters.forEach(h => { ctx.fillStyle = '#00BFFF'; ctx.fillRect(h.x, h.y, h.width, h.height); });
+                    const door_hall = scene.door; ctx.fillStyle = door_hall.color; ctx.fillRect(door_hall.x - door_hall.size / 2, door_hall.y - door_hall.height / 2, door_hall.size, door_hall.height);
+                    break;
+                case 'battle':
+                    const enemy = gameState.enemy;
+                    if (enemy) {
+                        ctx.fillStyle = enemy.color;
+                        if(enemy.isCircle) { ctx.beginPath(); ctx.arc(canvas.width / 2, 120, enemy.size / 2, 0, Math.PI * 2); ctx.fill(); } 
+                        else { ctx.fillRect(canvas.width / 2 - enemy.size / 2, 120 - enemy.size / 2, enemy.size, enemy.size * (enemy.name === 'Water Bottle' ? 2.5 : 1.5)); }
+                    }
+                    break;
+                case 'magic_world':
+                    const sil = scene.silhouette; ctx.fillStyle = sil.color; ctx.fillRect(sil.x - sil.size / 2, sil.y - sil.size / 2, sil.size, sil.size * 2);
+                    break;
+            }
+            ctx.restore();
+        }
+
+        startDialogue(scenes.library.dialogue);
+        gameLoop();
+    </script>
+</body>
+</html>

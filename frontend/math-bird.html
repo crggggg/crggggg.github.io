@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #387063;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            color: #fff;
+            position: relative;
+        }
+
+        #game-container {
+            position: relative;
+            background-color: #61A494;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            text-align: center;
+        }
+
+        canvas {
+            display: block;
+            background-color: #79D1B9;
+            border-radius: 8px;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .ui-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #god-mode-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        #high-score-display {
+            position: absolute;
+            top: 65px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.2em;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        #game-over-message {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 10px;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        #restart-button {
+            padding: 12px 24px;
+            font-size: 1.2em;
+            font-weight: bold;
+            background-color: #E67E22;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+            display: none;
+        }
+
+        #restart-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .controls {
+            margin-top: 20px;
+            font-size: 1em;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="score-display">0</div>
+        <div id="high-score-display">High Score: 0</div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="start-message" class="ui-text">Click or Press Spacebar to Jump</div>
+        <div id="game-over-message" class="ui-text" style="display:none;">
+            Game Over!
+            <br>
+            <button id="restart-button">Restart</button>
+        </div>
+        <div id="god-mode-text" style="display:none;">God Mode Active</div>
+    </div>
+    <div class="controls">
+        Press Spacebar or click the screen to make the bird jump. Hold 'X' to disable collision.
+    </div>
+
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreDisplay = document.getElementById('score-display');
+            const highScoreDisplay = document.getElementById('high-score-display');
+            const startMessage = document.getElementById('start-message');
+            const gameOverMessage = document.getElementById('game-over-message');
+            const restartButton = document.getElementById('restart-button');
+            const godModeText = document.getElementById('god-mode-text');
+
+            // Set up canvas dimensions for responsiveness
+            let gameWidth = window.innerWidth * 0.8;
+            let gameHeight = window.innerHeight * 0.7;
+            if (gameWidth > 600) gameWidth = 600;
+            if (gameHeight > 900) gameHeight = 900;
+            canvas.width = gameWidth;
+            canvas.height = gameHeight;
+
+            window.addEventListener('resize', () => {
+                gameWidth = window.innerWidth * 0.8;
+                gameHeight = window.innerHeight * 0.7;
+                if (gameWidth > 600) gameWidth = 600;
+                if (gameHeight > 900) gameHeight = 900;
+                canvas.width = gameWidth;
+                canvas.height = gameHeight;
+            });
+
+            const bird = {
+                x: 50,
+                y: canvas.height / 2,
+                width: 30,
+                height: 25,
+                gravity: 0.4,
+                lift: -6.5,
+                velocity: 0,
+                color: '#FFD700'
+            };
+
+            let pipes = [];
+            const pipeGap = 150;
+            const pipeWidth = 100;
+            const pipeSpeed = 3;
+            let pipeSpawnTimer = 0;
+            const pipeSpawnInterval = 120; // Frames
+
+            let score = 0;
+            let highScore = localStorage.getItem('flappyHighScore') || 0;
+            let isPlaying = false;
+            let isGameOver = false;
+            let collisionDisabled = false;
+
+            highScoreDisplay.textContent = `High Score: ${highScore}`;
+
+            // --- Math functions for the pipes ---
+            const functions = {
+                'sine': (x, params) => params.amplitude * Math.sin(params.frequency * (x - params.xOffset)) + params.yOffset,
+                'sumOfSines': (x, params) => {
+                    let y = params.yOffset;
+                    for (let i = 0; i < params.sines.length; i++) {
+                        y += params.sines[i].amplitude * Math.sin(params.sines[i].frequency * (x - params.xOffset));
+                    }
+                    return y;
+                }
+            };
+
+            // --- Game Logic Functions ---
+
+            function draw() {
+                // Clear the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw the bird
+                ctx.fillStyle = bird.color;
+                ctx.beginPath();
+                ctx.roundRect(bird.x, bird.y, bird.width, bird.height, 5);
+                ctx.fill();
+
+                // Draw pipes as graphs of functions
+                pipes.forEach(pipe => {
+                    ctx.fillStyle = '#27AE60';
+                    ctx.beginPath();
+                    // Draw the top pipe
+                    for (let i = 0; i < pipe.width; i++) {
+                        const pipeX = pipe.x + i;
+                        const topPipeY = pipe.topFunction(pipeX, pipe.params);
+                        if (!isNaN(topPipeY)) { // Check for valid numbers
+                            ctx.fillRect(pipeX, 0, 1, topPipeY);
+                        }
+                    }
+                    // Draw the bottom pipe
+                    for (let i = 0; i < pipe.width; i++) {
+                        const pipeX = pipe.x + i;
+                        const bottomPipeY = pipe.bottomFunction(pipeX, pipe.params);
+                        if (!isNaN(bottomPipeY)) { // Check for valid numbers
+                            ctx.fillRect(pipeX, bottomPipeY, 1, canvas.height - bottomPipeY);
+                        }
+                    }
+                });
+            }
+
+            function update() {
+                if (!isPlaying) return;
+
+                // Update bird's velocity and position
+                bird.velocity += bird.gravity;
+                bird.y += bird.velocity;
+
+                // Prevent bird from going off screen (top/bottom)
+                if (!collisionDisabled && (bird.y + bird.height > canvas.height || bird.y < 0)) {
+                    endGame();
+                }
+
+                // Update and draw pipes
+                for (let i = pipes.length - 1; i >= 0; i--) {
+                    pipes[i].x -= pipeSpeed;
+
+                    // Collision detection with bird
+                    if (!collisionDisabled && bird.x + bird.width > pipes[i].x && bird.x < pipes[i].x + pipeWidth) {
+                        // Check for vertical collision at bird's horizontal position
+                        const birdPipeX = bird.x;
+                        const topPipeY = pipes[i].topFunction(birdPipeX, pipes[i].params);
+                        const bottomPipeY = pipes[i].bottomFunction(birdPipeX, pipes[i].params);
+
+                        if (bird.y < topPipeY || bird.y + bird.height > bottomPipeY) {
+                            if (!isNaN(topPipeY) && !isNaN(bottomPipeY)) { // Only check collision if functions are defined
+                                endGame();
+                            }
+                        }
+                    }
+
+                    // Remove pipes that are off-screen
+                    if (pipes[i].x + pipeWidth < 0) {
+                        pipes.splice(i, 1);
+                        score++;
+                        scoreDisplay.textContent = score;
+                    }
+                }
+
+                // Spawn new pipes
+                pipeSpawnTimer++;
+                if (pipeSpawnTimer > pipeSpawnInterval) {
+                    let newPipe = generateValidPipe();
+                    if (newPipe) {
+                        pipes.push(newPipe);
+                        pipeSpawnTimer = 0;
+                    }
+                }
+            }
+
+            // Function to check if a generated pipe is passable
+            function isPassable(pipe) {
+                const margin = 20; // Ensure a small margin from the top and bottom of the screen
+                const minGap = bird.height * 1.5; // Minimum required gap for the bird
+                for (let i = 0; i < pipe.width; i++) {
+                    const pipeX = pipe.x + i;
+                    const topPipeY = pipe.topFunction(pipeX, pipe.params);
+                    const bottomPipeY = pipe.bottomFunction(pipeX, pipe.params);
+                    
+                    if (isNaN(topPipeY) || isNaN(bottomPipeY) || topPipeY < margin || bottomPipeY > canvas.height - margin || bottomPipeY <= topPipeY + minGap) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // New function to generate a pipe and validate its full path
+            function generateValidPipe() {
+                const maxAttempts = 100;
+                let attempts = 0;
+                while (attempts < maxAttempts) {
+                    const funcNames = Object.keys(functions);
+                    const funcName = funcNames[Math.floor(Math.random() * funcNames.length)];
+                    const topFunction = functions[funcName];
+
+                    let params = {
+                        xOffset: canvas.width,
+                        yOffset: Math.random() * (canvas.height - 300) + 150
+                    };
+
+                    if (funcName === 'sine') {
+                        params.amplitude = Math.random() * 50 + 30;
+                        params.frequency = (Math.random() * 0.05) + 0.01;
+                    } else if (funcName === 'sumOfSines') {
+                        params.sines = [];
+                        const numSines = Math.floor(Math.random() * 3) + 2; // 2 to 4 sines
+                        for (let i = 0; i < numSines; i++) {
+                            params.sines.push({
+                                amplitude: Math.random() * 20 + 10,
+                                frequency: (Math.random() * 0.02) + 0.005,
+                            });
+                        }
+                    }
+                    
+                    const pipe = {
+                        x: canvas.width,
+                        width: pipeWidth,
+                        topFunction: topFunction,
+                        bottomFunction: (x, p) => topFunction(x, p) + pipeGap,
+                        params: params
+                    };
+                    
+                    // Comprehensive validation: Check for passability across the entire screen
+                    let isValid = true;
+                    for (let x = 0; x < canvas.width + pipe.width; x += 10) { // Check at intervals
+                        const pipeX = pipe.x - x;
+                        const topY = pipe.topFunction(pipeX, pipe.params);
+                        const bottomY = pipe.bottomFunction(pipeX, pipe.params);
+
+                        if (isNaN(topY) || isNaN(bottomY) || topY < 20 || bottomY > canvas.height - 20 || bottomY <= topY + bird.height * 1.5) {
+                            isValid = false;
+                            break;
+                        }
+                    }
+
+                    if (isValid) {
+                        return pipe;
+                    }
+                    attempts++;
+                }
+
+                // Fallback to a simple straight pipe if no valid one can be generated
+                const yOffset = Math.random() * (canvas.height - 300) + 150;
+                return {
+                    x: canvas.width,
+                    width: pipeWidth,
+                    topFunction: (x, p) => p.yOffset,
+                    bottomFunction: (x, p) => p.yOffset + pipeGap,
+                    params: { yOffset: yOffset }
+                };
+            }
+
+            // --- Game Loop ---
+            function gameLoop() {
+                if (!isGameOver) {
+                    update();
+                    draw();
+                    requestAnimationFrame(gameLoop);
+                }
+            }
+
+            function jump() {
+                if (isPlaying) {
+                    bird.velocity = bird.lift;
+                } else {
+                    startGame();
+                }
+            }
+
+            function startGame() {
+                isPlaying = true;
+                isGameOver = false;
+                score = 0;
+                scoreDisplay.textContent = score;
+                bird.y = canvas.height / 2;
+                bird.velocity = 0;
+                pipes = [];
+                pipeSpawnTimer = 0;
+                startMessage.style.display = 'none';
+                gameOverMessage.style.display = 'none';
+                restartButton.style.display = 'none';
+                godModeText.style.display = 'none';
+                gameLoop();
+            }
+
+            function endGame() {
+                isPlaying = false;
+                isGameOver = true;
+                bird.velocity = 0;
+                gameOverMessage.style.display = 'block';
+                restartButton.style.display = 'block';
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('flappyHighScore', highScore);
+                    highScoreDisplay.textContent = `High Score: ${highScore}`;
+                }
+            }
+
+            // --- Event Listeners ---
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    jump();
+                }
+                if (e.key === 'x') {
+                    collisionDisabled = true;
+                    godModeText.style.display = 'block';
+                }
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                if (e.key === 'x') {
+                    collisionDisabled = false;
+                    godModeText.style.display = 'none';
+                }
+            });
+
+            canvas.addEventListener('mousedown', () => {
+                jump();
+            });
+
+            restartButton.addEventListener('click', () => {
+                startGame();
+            });
+
+            // Initial draw call
+            draw();
+        };
+    </script>
+</body>
+</html>
