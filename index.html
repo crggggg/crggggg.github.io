@@ -145,39 +145,48 @@
         // CONFIGURATION: ADD YOUR GAMES HERE
         // ==========================================
         
-        // 1. IMPORTANT GAMES (Shown Big at the top)
+        // 1. BEST GAMES (Shown Big at the top)
         const bestGames = [
             { 
                 title: "Weather Duck RPG", 
-                url: "frontend/wduck.html", 
-                img: "../assets/wdrpg.png",
-                isNew: true // Adds the red exclamation mark
+                url: "frontend/weather-duck-rpg.html", 
+                img: "../assets/weather-duck-rpg.png",
+                isNew: true
             },
             { 
-                title: "Weather Duck 3D", 
-                url: "frontend/weather-duck-3d.html", 
-                img: "../assets/wd3d.png",
-                isNew: false 
+                title: "Weather Duck Roguelike", 
+                url: "frontend/weather-duck-roguelike.html", 
+                img: "../assets/weather-duck-roguelike.png",
+                isNew: false
+            },
+            { 
+                title: "Weather Duck Platformer", 
+                url: "frontend/weather-duck-platformer.html", 
+                img: "../assets/weather-duck-platformer.png",
+                isNew: false
+            },
+            { 
+                title: "WaterRune Demo", 
+                url: "frontend/waterrune.html", 
+                img: "../assets/waterrune.png",
+                isNew: false
             }
         ];
 
-        // 2. UNIMPORTANT GAMES (Shown smaller below)
+        // 2. OTHER GAMES (Shown smaller below)
         const otherGames = [
-            { title: "Weather Duck Roguelike", url: "frontend/weather-duck-roguelike.html", img: "../assets/wdr.png", isNew: false },
-            { title: "Weather Duck platformer", url: "frontend/weather-duck-platformer.html", img: "../assets/wdp.png", isNew: false },
-            { title: "Asgore runs over Dess", url: "frontend/asgore-dess.html", img: "../assets/arod.png", isNew: true },
-            { title: "Acrobatic Platformer", url: "frontend/acrobatic-platformer.html", img: "../assets/ap.png", isNew: false },
-            { title: "WaterRune demo", url: "frontend/waterrune.html", img: "../assets/wr.png", isNew: false },
-            { title: "Mandelbrot Tetris", url: "frontend/mandelbrot-tetris.html", img: "../assets/mt.png", isNew: false },
-            { title: "Ducky bird sandbox", url: "frontend/ducky-bird.html", img: "../assets/dbs.png", isNew: false },
-            { title: "Breathe if prime", url: "frontend/breathe-if-prime.html", img: "../assets/bip.png", isNew: false },
-            { title: "Math Hell", url: "frontend/math-hell.html", img: "../assets/mh.png", isNew: false },
-            { title: "5D Platformer", url: "frontend/5d-platformer.html", img: "../assets/5dp.png", isNew: true },
-            { title: "Math Bird", url: "frontend/math-bird.html", img: "../assets/mb.png", isNew: false }
+            { title: "Weather Duck 3D", url: "frontend/weather-duck-3d.html", img: "../assets/weather-duck-3d.png", isNew: false },
+            { title: "Asgore runs over Dess", url: "frontend/asgore-runs-over-dess.html", img: "../assets/asgore-runs-over-dess.png", isNew: false },
+            { title: "Acrobatic Platformer", url: "frontend/acrobatic-platformer.html", img: "../assets/acrobatic-platformer.png", isNew: false },
+            { title: "Ducky bird sandbox", url: "frontend/ducky-bird.html", img: "../assets/ducky-bird.png", isNew: false },
+            { title: "Breathe if prime", url: "frontend/breathe-if-prime.html", img: "../assets/breathe-if-prime.png", isNew: false },
+            { title: "Math Hell", url: "frontend/math-hell.html", img: "../assets/math-hell.png", isNew: false },
+            { title: "5D Platformer", url: "frontend/5d-platformer.html", img: "../assets/5d-platformer.png", isNew: false },
+            { title: "Math Bird", url: "frontend/math-bird.html", img: "../assets/math-bird.png", isNew: false }
         ];
 
         // List of games that require the back button to be centered (special cases)
-        const centerButtonGames = ['asgore-dess.html', 'math-hell.html', '5d-platformer.html'];
+        const centerButtonGames = ['asgore-runs-over-dess.html', 'math-hell.html', '5d-platformer.html'];
 
 
         // ==========================================
