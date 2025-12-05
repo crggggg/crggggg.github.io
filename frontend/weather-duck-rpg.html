@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather Duck Games</title>
+    <title>Weather Duck RPG</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -17,7 +17,7 @@
             border: 1px solid #000000;
             cursor: pointer;
             overflow: hidden; 
-            position: relative; /* Needed for positioning the NEW tag */
+            position: relative;
             background: #fff;
         }
 
@@ -34,16 +34,8 @@
             display: block;
         }
 
-        /* BIG CARDS (Best Games) */
-        .game-card-large h2 {
-            padding: 1.5rem;
-            font-size: 2rem; 
-            font-weight: bold;
-            text-align: center;
-        }
-
-        /* SMALL CARDS (Other Games) */
-        .game-card-small h2 {
+        /* SMALL CARDS STYLING (Applied to all now) */
+        .game-card h2 {
             padding: 0.5rem;
             font-size: 1rem;
             font-weight: normal;
@@ -60,14 +52,14 @@
             position: absolute;
             top: 0;
             right: 0;
-            width: 40px;
-            height: 40px;
+            width: 30px; /* Made slightly smaller for small cards */
+            height: 30px;
             background-color: #ef4444; /* Red */
             color: white;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
             z-index: 10;
         }
@@ -113,25 +105,12 @@
 
     <div id="game-menu">
         <header class="text-center mb-12">
-            <h1 class="text-5xl font-bold mb-2">Weather duck games</h1>
-            <p class="text-xl">some games we made</p>
+            <h1 class="text-5xl font-bold mb-2">Weather duck rpg</h1>
         </header>
 
-        <!-- SECTION 1: BEST GAMES (BIG) -->
-        <div class="max-w-6xl mx-auto mb-16">
-            <h3 class="text-2xl font-bold mb-4 border-b border-black pb-2">Best Games</h3>
-            <div id="best-games-container" class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Javascript will inject games here -->
-            </div>
-        </div>
-
-        <!-- SECTION 2: OTHER GAMES (SMALL) -->
         <div class="max-w-6xl mx-auto">
-            <h3 class="text-xl mb-4 border-b border-black pb-2">Other Games</h3>
-            <!-- Grid is 2 cols on mobile, 4 on desktop -->
-            <div id="other-games-container" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <!-- Javascript will inject games here -->
-            </div>
+            <div id="games-container" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 </div>
         </div>
     </div>
 
@@ -145,8 +124,8 @@
         // CONFIGURATION: ADD YOUR GAMES HERE
         // ==========================================
         
-        // 1. IMPORTANT GAMES (Shown Big at the top)
-        const bestGames = [
+        // Combined list of all games
+        const allGames = [
             { title: "Chapter 1", url: "rpg-1-1.html", img: "../assets/weather-duck-rpg.png", isNew: false },
             { 
                 title: "Chapter 2", 
@@ -161,11 +140,8 @@
                 isNew: true
             },
             { title: "Original", url: "rpg-1-0.html", img: "../assets/weather-duck-rpg.png", isNew: false },
-        ];
-
-        // 2. UNIMPORTANT GAMES (Shown smaller below)
-        const otherGames = [
             
+            // Add any other games here...
         ];
 
         // List of games that require the back button to be centered (special cases)
@@ -173,31 +149,27 @@
 
 
         // ==========================================
-        // RENDER LOGIC (Do not need to touch below)
+        // RENDER LOGIC
         // ==========================================
 
         function renderGames() {
-            const bestContainer = document.getElementById('best-games-container');
-            const otherContainer = document.getElementById('other-games-container');
+            const container = document.getElementById('games-container');
 
             // Render Function
-            const createCard = (game, isLarge) => {
-                const cardClass = isLarge ? 'game-card-large' : 'game-card-small';
-                
+            const createCard = (game) => {
                 // HTML Template
                 return `
-                <div class="game-card ${cardClass}" onclick="showGame('${game.url}')">
+                <div class="game-card" onclick="showGame('${game.url}')">
                     ${game.isNew ? '<div class="new-tag">!</div>' : ''}
                     <img src="${game.img}" alt="${game.title}" 
-                         onerror="this.onerror=null;this.src='https://placehold.co/${isLarge ? '600x600' : '300x300'}/eee/000?text=${encodeURIComponent(game.title)}';">
+                         onerror="this.onerror=null;this.src='https://placehold.co/300x300/eee/000?text=${encodeURIComponent(game.title)}';">
                     <h2>${game.title}</h2>
                 </div>
                 `;
             };
 
             // Inject HTML
-            bestContainer.innerHTML = bestGames.map(game => createCard(game, true)).join('');
-            otherContainer.innerHTML = otherGames.map(game => createCard(game, false)).join('');
+            container.innerHTML = allGames.map(game => createCard(game)).join('');
         }
 
         // Initialize display
