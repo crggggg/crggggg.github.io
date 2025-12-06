@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Weather RPG: Complete Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            overflow: hidden;
+            user-select: none;
+        }
+        canvas {
+            background-color: #162447;
+            cursor: crosshair;
+            border-radius: 0.5rem;
+            border: 4px solid #1f4068;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+        }
+        .ui-panel {
+            background-color: rgba(0,0,0,0.8);
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: 2px solid #374151;
+        }
+        .weapon-btn {
+            background-color: #4a5568;
+            border: 2px solid #2d3748;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+        }
+        .weapon-btn.active {
+            background-color: #a0aec0;
+            border-color: #718096;
+            transform: scale(1.1);
+            color: #1a202c;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .gui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(10, 10, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+        }
+        .gui-button {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            color: #1a1a2e;
+            background-color: #6ee7b7;
+            border-radius: 0.5rem;
+            border: 4px solid #34d399;
+            cursor: pointer;
+            transition: transform 0.1s;
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+        }
+        .gui-button:hover {
+            transform: scale(1.05);
+            filter: brightness(1.1);
+        }
+        .btn-dlc {
+            background-color: #f472b6; /* pink-400 */
+            border-color: #ec4899; /* pink-500 */
+            color: #fff;
+        }
+        .cereal-toast {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fbbf24;
+            font-size: 1.2rem;
+            pointer-events: none;
+            animation: floatUp 1.5s ease-out forwards;
+            text-shadow: 2px 2px 0px #000;
+            z-index: 20;
+            white-space: nowrap;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, 0); }
+            100% { opacity: 0; transform: translate(-50%, -60px); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container" class="game-container relative">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+        
+        <div id="ui-panel" class="ui-panel mt-4 w-full max-w-4xl text-sm hidden">
+            <div class="flex justify-between items-center mb-2">
+                <div>
+                    HP: <span id="health" class="text-green-400">100</span> | 
+                    LVL: <span id="level" class="text-yellow-300">1</span> |
+                    <span id="enemies-label">Foes:</span> <span id="enemies-left" class="text-red-400">0</span>
+                </div>
+                 <div>Timer: <span id="timer" class="text-white">00:00:000</span></div>
+                <div>Weather: <span id="weather" class="text-cyan-300">Clear</span> (<span id="weather-timer" class="text-cyan-300">20</span>s)</div>
+            </div>
+            <div class="flex justify-center items-center gap-4 text-xs mb-2 text-purple-300 font-bold tracking-wider border-t border-b border-gray-600 py-1">
+                <span>STATS:</span>
+                <span id="stat-speed">SPD: 100%</span>
+                <span id="stat-dmg">DMG: 100%</span>
+            </div>
+            <div id="weapon-select" class="flex justify-center gap-4 mt-2"></div>
+        </div>
+
+        <div id="gui-menu" class="gui-overlay">
+            <h1 class="text-4xl text-yellow-300 mb-6 drop-shadow-md">Duck Weather RPG</h1>
+            <p class="text-sm text-gray-300 mb-8 max-w-md leading-6">Choose your adventure, Duck.</p>
+            
+            <div class="flex flex-col gap-6">
+                <button id="start-base" class="gui-button">
+                    Play Base Game<br>
+                    <span class="text-xs opacity-75">Original Campaign</span>
+                </button>
+                
+                <button id="start-dlc" class="gui-button btn-dlc">
+                    Play DLC<br>
+                    <span class="text-xs opacity-90">Sugary Retribution</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="gui-message" class="gui-overlay hidden">
+            <h2 id="message-title" class="text-3xl mb-4 text-yellow-300"></h2>
+            <p id="message-text" class="text-sm mb-8 text-white max-w-md leading-6"></p>
+            <button id="message-button" class="gui-button"></button>
+        </div>
+    </div>
+
+    <script>
+        // --- Canvas and UI Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiPanel = document.getElementById('ui-panel');
+        const healthUI = document.getElementById('health');
+        const levelUI = document.getElementById('level');
+        const enemiesLabelUI = document.getElementById('enemies-label');
+        const enemiesLeftUI = document.getElementById('enemies-left');
+        const weatherUI = document.getElementById('weather');
+        const weatherTimerUI = document.getElementById('weather-timer');
+        const weaponSelectUI = document.getElementById('weapon-select');
+        const timerUI = document.getElementById('timer');
+        const statSpeedUI = document.getElementById('stat-speed');
+        const statDmgUI = document.getElementById('stat-dmg');
+        const gameContainer = document.getElementById('game-container');
+        
+        const guiMenu = document.getElementById('gui-menu');
+        const startBaseBtn = document.getElementById('start-base');
+        const startDlcBtn = document.getElementById('start-dlc');
+        const guiMessage = document.getElementById('gui-message');
+        const messageTitle = document.getElementById('message-title');
+        const messageText = document.getElementById('message-text');
+        const messageButton = document.getElementById('message-button');
+
+        // --- Game Constants ---
+        const TILE_SIZE = 40;
+        const PLAYER_SPEED = 3.5; 
+        const DLC_START_INDEX = 4;
+        const SECRET_LEVEL_INDEX = 99; // Anton's Level
+
+        const colors = {
+            player: 'yellow',
+            devPlayer: '#3b82f6', // Hacker Blue
+            enemy: '#f87171', 
+            boss: '#e11d48', 
+            projectile: '#f43f5e', 
+            attack: 'rgba(255, 255, 255, 0.3)',
+            sugarEnemy: '#ec4899',
+            anton: '#7c2d12', // Beaver Brown
+            tiles: {
+                0: '#4ade80', // green-400 (grass)
+                1: '#78716c', // stone-500 (rock/wall)
+                2: '#a16207', // yellow-700 (path)
+                3: '#4338ca', // indigo-700 (cave floor)
+                4: '#2563eb', // blue-600 (water)
+                5: '#a3a3a3', // neutral-400 (castle floor)
+                6: '#dc2626', // red-600 (boss floor)
+                // DLC Tiles
+                7: '#fbcfe8', // pink-200 (Cotton Candy)
+                8: '#78350f', // amber-900 (Chocolate Wall)
+                9: '#f59e0b', // amber-500 (Soda Lava)
+                10: '#451a03' // SECRET BEAVER LOG (Looks dark brown)
+            }
+        };
+
+        // --- Game State ---
+        let player, enemies = [], projectiles = [], cereals = [], boss, map, weapons, weather, weatherInterval, gameLoopId;
+        let keys = {};
+        let currentLevel = 0;
+        let gameState = 'menu'; 
+        let gameMode = 'base';
+        let mouse = { x: 0, y: 0 };
+        let startTime = 0;
+        let finalTime = "00:00:000";
+        let isDevMode = false;
+
+        // --- Game Data ---
+        const levels = [
+            // --- BASE GAME (0-3) ---
+            { 
+                name: "The Sunny Plains", 
+                enemyCount: 5, 
+                map: [
+                    "111111111111111111111111", 
+                    "100022200000004444000001", 
+                    "100220020000044444400001", 
+                    "102200002220004440000001", 
+                    "100000000022000000002201", 
+                    "100000000002222222222001", 
+                    "111111111111111111111111",
+                    "111111111111111111111111", // Padding for screen fit
+                    "111111111111111111111111", 
+                    "111111111111111111111111", 
+                    "111111111111111111111111", 
+                    "111111111111111111111111", 
+                    "111111111111111111111111", 
+                    "111111111111111111111111"  
+                ] 
+            },
+            { name: "The Dank Cave", enemyCount: 8, map: ["111111111111111111111111","133313333333333331333331","134431333111331113334431","13443133333133133334431","133331113331331333333331","133333333333333333333331","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111"] },
+            { name: "Lazarus's Keep", enemyCount: 10, map: ["111111111111111111111111","155555555555555555555551","151115511155111551115511","155555555555555555555551","115511155111551115511155","155555555555555555555551","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111"] },
+            { name: "Throne of Lazarus", enemyCount: 1, map: ["111111111111111111111111","166666666666666666666661","166661111111111111166661","166661666666666666166661","166661111111111111166661","166666666666666666666661","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111","111111111111111111111111"] },
+
+            // --- DLC (4-8) ---
+            { name: "Candy Corn Fields", enemyCount: 10, map: ["888888888888888888888888","877777777997777777777778","877777779999777777777778","877999777997778887777778","877999777777778887777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","888888888888888888888888"] },
+            { name: "Donut Ridge (Boss)", bossType: "donut", map: ["888888888888888888888888","877777777777777777777778","877777777777777777777778","877777777777777777777778","877999777777777777999778","877979777777777777979778","877999777777777777999778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","888888888888888888888888"] },
+            { name: "The Soda Swamp", enemyCount: 12, map: ["888888888888888888888888","899997779999777999999998","897797779779777977777798","897797779779777999999998","897799999779999977777778","897777777777777777777778","897777777777777777777778","897777777777777777777778","897777777777777777777778","897777777777777777777778","897777777777777777777778","897777777777777777777778","897777777777777777777778","888888888888888888888888"] },
+            { name: "The Deep Fryer", enemyCount: 14, map: ["888888888888888888888888","855555558855555588555558","858888858858888588588888","855555555555555555555558","888888588588885885888858","855555558855555588555558","888888888888888888888888","888888888888888888888888","888888888888888888888888","888888888888888888888888","888888888888888888888888","888888888888888888888888","888888888888888888888888","888888888888888888888888"] },
+            { name: "Sugar Throne (FINAL)", bossType: "lazarus_final", map: ["888888888888888888888888","877777777777777777777778","879999977777777779999978","879979977777777779979978","879999977777777779999978","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","877777777777777777777778","888888888888888888888888"] }
+        ];
+        
+        // SECRET LEVEL
+        const antonLevel = { 
+            name: "The Illegal Dam", 
+            bossType: "anton", 
+            map: [
+                "111111111111111111111111",
+                "144444444444444444444441",
+                "140000000000000000000041",
+                "140022222222222220000041",
+                "140022222222222220000041",
+                "140000000000000000000041",
+                "144444444444444444444441",
+                "111111111111111111111111",
+                "111111111111111111111111",
+                "111111111111111111111111",
+                "111111111111111111111111",
+                "111111111111111111111111",
+                "111111111111111111111111",
+                "111111111111111111111111"
+            ]
+        };
+
+        const mapLayout = levels.map(level => level.map.map(row => row.split('').map(Number)));
+        const antonMap = antonLevel.map.map(row => row.split('').map(Number));
+
+        // Inject Secret Entrance into Level 0
+        // Top Right area, coord [1, 22] approx
+        mapLayout[0][1][22] = 10; // The Magic Log
+
+        const weaponsConfig = [
+            { name: "Broadsword", damage: 12, range: TILE_SIZE * 1.5, cooldown: 500 },
+            { name: "Dagger", damage: 8, range: TILE_SIZE * 0.9, cooldown: 250 },
+            { name: "Greatsword", damage: 20, range: TILE_SIZE * 2.2, cooldown: 900 },
+        ];
+        
+        const weatherTypes = [
+            { name: "Sunny", effect: "speed", value: 1.2, color: "#fcd34d" },
+            { name: "Rainy", effect: "defense", value: 0.75, color: "#60a5fa" },
+            { name: "Windy", effect: "attackSpeed", value: 0.8, color: "#9ca3af" },
+            { name: "Stormy", effect: "damage", value: 1.5, color: "#a78bfa" },
+        ];
+
+        // --- Utility Functions ---
+        function getDistance(a, b) {
+            return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+        }
+
+        function findValidSpawnPoint() {
+            let x, y, tileX, tileY, tileType;
+            const padding = TILE_SIZE; 
+            let attempts = 0;
+            do {
+                x = Math.random() * (canvas.width - padding * 2) + padding;
+                y = Math.random() * (canvas.height - padding * 2) + padding;
+                tileX = Math.floor(x / TILE_SIZE);
+                tileY = Math.floor(y / TILE_SIZE);
+                tileType = (map[tileY] && map[tileY][tileX] !== undefined) ? map[tileY][tileX] : 1;
+                attempts++;
+            } while ((tileType === 1 || tileType === 4 || tileType === 8 || tileType === 9) && attempts < 100); 
+            return { x, y };
+        }
+
+        function findPlayerStart() {
+            for(let c = 1; c <= 3; c++) {
+                for(let r = 1; r < map.length - 1; r++) {
+                    const tile = map[r][c];
+                    if(tile !== 1 && tile !== 8 && tile !== 4 && tile !== 9) {
+                        return { x: c * TILE_SIZE, y: r * TILE_SIZE };
+                    }
+                }
+            }
+            return { x: TILE_SIZE * 2, y: TILE_SIZE * 2 };
+        }
+        
+        function showGUI(title, text, buttonText, callback) {
+            gameState = 'paused';
+            messageTitle.textContent = title;
+            if (title.includes("Win") || title.includes("Over") || title.includes("VICTORY")) {
+                 messageText.textContent = `${text} Your time: ${finalTime}`;
+            } else {
+                 messageText.textContent = text;
+            }
+            messageButton.textContent = buttonText;
+            messageButton.onclick = callback;
+            guiMessage.classList.remove('hidden');
+        }
+        
+        function updateTimer() {
+            if (gameState !== 'playing') return;
+            const elapsed = Date.now() - startTime;
+            const minutes = String(Math.floor(elapsed / 60000)).padStart(2, '0');
+            const seconds = String(Math.floor((elapsed % 60000) / 1000)).padStart(2, '0');
+            const milliseconds = String(elapsed % 1000).padStart(3, '0');
+            finalTime = `${minutes}:${seconds}:${milliseconds}`;
+            timerUI.textContent = finalTime;
+        }
+
+        function createToast(text, color) {
+            const toast = document.createElement('div');
+            toast.className = 'cereal-toast';
+            toast.textContent = text;
+            toast.style.color = color;
+            gameContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 1500);
+        }
+
+        // --- Cereal Class ---
+        class Cereal {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = TILE_SIZE * 0.9;
+                const rand = Math.random();
+                if (rand > 0.92) {
+                    this.type = 'dirt'; this.color = '#5d4037'; this.label = 'DIRT';
+                } else if (rand > 0.65) {
+                    this.type = 'banana'; this.color = '#facc15'; this.label = 'BANANA';
+                } else {
+                    this.type = 'grass'; this.color = '#22c55e'; this.label = 'GRASS';
+                }
+                this.floatOffset = Math.random() * Math.PI * 2;
+            }
+
+            draw() {
+                const floatY = Math.sin((Date.now() / 300) + this.floatOffset) * 3;
+                const w = this.size - 6; const h = this.size; const d = 8;
+                const bx = this.x - w/2; const by = this.y - h/2 + floatY;
+
+                ctx.fillStyle = '#cbd5e1'; 
+                ctx.beginPath(); ctx.moveTo(bx + w, by); ctx.lineTo(bx + w + d, by - d);
+                ctx.lineTo(bx + w + d, by + h - d); ctx.lineTo(bx + w, by + h); ctx.fill();
+
+                ctx.fillStyle = '#e2e8f0'; 
+                ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + d, by - d);
+                ctx.lineTo(bx + w + d, by - d); ctx.lineTo(bx + w, by); ctx.fill();
+
+                ctx.fillStyle = '#f8fafc'; ctx.fillRect(bx, by, w, h);
+                ctx.fillStyle = this.color; ctx.fillRect(bx, by + 10, w, 12);
+                ctx.fillStyle = '#1e293b'; ctx.font = 'bold 8px sans-serif';
+                ctx.textAlign = 'center'; ctx.fillText('ELIAS', bx + w/2, by + 8);
+                ctx.beginPath(); ctx.arc(bx + w/2, by + h - 8, 5, 0, Math.PI); ctx.fill();
+            }
+
+            checkCollision() {
+                if (getDistance(this, player) < this.size) {
+                    if (this.type === 'grass') {
+                        player.heal(25);
+                        createToast("+25 HP", "#4ade80");
+                    } else if (this.type === 'banana') {
+                        player.addPermBuff('speed', 0.15); 
+                        createToast("+15% SPD (Perm)", "#facc15");
+                    } else if (this.type === 'dirt') {
+                        player.heal(50);
+                        player.addPermBuff('damage', 0.25); 
+                        createToast("+25% DMG (Perm)", "#78350f");
+                    }
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        // --- Game Object Classes ---
+        class Player {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = TILE_SIZE;
+                this.maxHealth = 100;
+                this.health = 100;
+                this.baseSpeed = PLAYER_SPEED;
+                this.currentWeapon = 0;
+                this.lastAttackTime = 0;
+                this.isAttacking = false;
+                this.attackAnimTimeout = null;
+                this.attackAngle = 0;
+                this.speedModifier = 1.0;
+                this.damageModifier = 1.0;
+            }
+            
+            heal(amount) {
+                this.health = Math.min(this.health + amount, this.maxHealth);
+            }
+
+            addPermBuff(type, amount) {
+                if(type === 'speed') this.speedModifier += amount;
+                else if (type === 'damage') this.damageModifier += amount;
+                updateUI();
+            }
+
+            draw() {
+                if (this.isAttacking) {
+                    const weapon = weapons[this.currentWeapon];
+                    ctx.save(); ctx.beginPath(); ctx.translate(this.x, this.y);
+                    ctx.rotate(this.attackAngle); 
+                    ctx.fillStyle = colors.attack; ctx.globalAlpha = 0.6;
+                    ctx.arc(weapon.range / 2, 0, weapon.range / 2, -Math.PI/2.5, Math.PI/2.5);
+                    ctx.lineTo(0, 0); ctx.closePath(); ctx.fill(); ctx.restore();
+                }
+                // Health Bar
+                if (this.health < this.maxHealth) {
+                    const barWidth = this.size; const barHeight = 6;
+                    const yOffset = this.size / 2 + 8;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                    ctx.fillStyle = '#22c55e';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                    ctx.strokeStyle = '#111';
+                    ctx.strokeRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                }
+                
+                // Hacker Mode Color
+                ctx.fillStyle = isDevMode ? colors.devPlayer : colors.player; 
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🦆', this.x, this.y);
+                
+                if (isDevMode) {
+                    ctx.fillStyle = "#fff"; ctx.font = "10px sans-serif";
+                    ctx.fillText("DEV", this.x, this.y - 15);
+                }
+            }
+            isColliding(x, y) {
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                
+                // SECRET ACTIVATION
+                if (tileType === 10 && currentLevel === 0) {
+                    activateSecretLevel();
+                    return true;
+                }
+
+                return tileType === 1 || tileType === 4 || tileType === 8 || tileType === 9;
+            }
+            update() {
+                let speed = this.baseSpeed * this.speedModifier; 
+                if (weather.effect === 'speed') speed *= weather.value;
+                if (isDevMode) speed *= 2.0; // DEV SPEED
+                
+                let vx = 0; let vy = 0;
+                if (keys['w']) vy = -1;
+                if (keys['s']) vy = 1;
+                if (keys['a']) vx = -1;
+                if (keys['d']) vx = 1;
+
+                if (vx !== 0 && vy !== 0) {
+                    vx *= Math.SQRT1_2; vy *= Math.SQRT1_2;
+                }
+                const newX = this.x + vx * speed;
+                const newY = this.y + vy * speed;
+                if (!this.isColliding(newX, this.y)) this.x = newX;
+                if (!this.isColliding(this.x, newY)) this.y = newY;
+                this.x = Math.max(0, Math.min(canvas.width, this.x));
+                this.y = Math.max(0, Math.min(canvas.height, this.y));
+
+                let attackX = 0; let attackY = 0;
+                if (keys['arrowup']) attackY = -1;
+                if (keys['arrowdown']) attackY = 1;
+                if (keys['arrowleft']) attackX = -1;
+                if (keys['arrowright']) attackX = 1;
+
+                if (attackX !== 0 || attackY !== 0) {
+                    const attackAngle = Math.atan2(attackY, attackX);
+                    this.attack(attackAngle);
+                }
+            }
+            attack(angle) { 
+                const weapon = weapons[this.currentWeapon];
+                let cooldown = weapon.cooldown;
+                if (weather.effect === 'attackSpeed') cooldown *= weather.value;
+                if (isDevMode) cooldown = 50; // Machine gun attacks in Dev Mode
+
+                const now = Date.now();
+                if (now - this.lastAttackTime < cooldown) return;
+                
+                this.lastAttackTime = now;
+                this.isAttacking = true;
+                clearTimeout(this.attackAnimTimeout);
+                this.attackAnimTimeout = setTimeout(() => this.isAttacking = false, 100);
+
+                if (angle !== undefined) {
+                    this.attackAngle = angle;
+                } else {
+                    this.attackAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+                }
+
+                const targets = boss ? [boss] : enemies;
+                targets.forEach(target => {
+                    const dist = getDistance(this, target);
+                    if (dist < weapon.range + target.size / 2) { 
+                        const angleToTarget = Math.atan2(target.y - this.y, target.x - this.x);
+                        let angleDiff = Math.abs(this.attackAngle - angleToTarget);
+                        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+                        
+                        if (angleDiff < Math.PI / 2.5) {
+                            let damage = weapon.damage * this.damageModifier; 
+                            if (weather.effect === 'damage') damage *= weather.value;
+                            if (isDevMode) damage *= 5; // DEV DAMAGE
+                            target.takeDamage(damage);
+                        }
+                    }
+                });
+            }
+            takeDamage(amount) {
+                if (isDevMode) return; // Invincible in Dev Mode
+                if (weather.effect === 'defense') amount *= weather.value;
+                this.health -= Math.round(amount);
+                if(this.health <= 0) {
+                    this.health = 0;
+                    gameState = 'gameover';
+                    showGUI("Game Over", "You were defeated!", "Return to Menu", resetGame);
+                }
+                updateUI();
+            }
+        }
+        
+        class MiniLazarus {
+            constructor(x, y, angle) {
+                this.x = x; this.y = y;
+                this.size = TILE_SIZE * 0.5;
+                this.speed = 4;
+                this.damage = 10;
+                this.angle = angle;
+            }
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+
+                if (getDistance(this, player) < player.size / 2) {
+                    player.takeDamage(this.damage);
+                    this.remove();
+                }
+            }
+            draw() {
+                ctx.fillStyle = colors.projectile;
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.fillText('⚡', this.x, this.y);
+            }
+            remove() {
+                projectiles = projectiles.filter(p => p !== this);
+            }
+        }
+
+        class Boss {
+             constructor(x, y, type) {
+                this.x = x; this.y = y; this.size = TILE_SIZE * 3;
+                this.type = type; 
+                this.maxHealth = 500;
+                this.damage = 20;
+                this.speed = 1;
+                this.attackCooldown = 2000;
+                this.symbol = '🔱';
+
+                if (type === 'donut') {
+                    this.maxHealth = 800; this.damage = 15; this.speed = 1.2;
+                    this.attackCooldown = 1500; this.symbol = '🍩';
+                } else if (type === 'lazarus_final') {
+                    this.maxHealth = 1500; this.damage = 30; this.speed = 1.5;
+                    this.attackCooldown = 1000; this.symbol = '🔱';
+                } else if (type === 'anton') {
+                    this.maxHealth = 3000; this.damage = 50; this.speed = 0.5;
+                    this.attackCooldown = 800; this.symbol = '🦫'; // BEAVER
+                }
+
+                this.health = this.maxHealth;
+                this.lastAttackTime = Date.now();
+                this.aggroRange = TILE_SIZE * 20; 
+            }
+            draw() {
+                ctx.fillStyle = this.type === 'anton' ? colors.anton : colors.boss; 
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(this.symbol, this.x, this.y);
+                const barWidth = this.size * 1.5; const barHeight = 15;
+                const yOffset = this.size / 2 + 15;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                
+                if (this.type === 'anton') {
+                    ctx.fillStyle = "white"; ctx.font="12px sans-serif";
+                    ctx.fillText("Anton Lesovik", this.x, this.y - yOffset - 10);
+                }
+            }
+            isColliding(x, y) {
+                 const tileX = Math.floor(x / TILE_SIZE);
+                 const tileY = Math.floor(y / TILE_SIZE);
+                 const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                 return tileType === 1 || tileType === 4 || tileType === 8 || tileType === 9;
+            }
+            update() {
+                const dist = getDistance(this, player);
+                if (dist > player.size) { 
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    const newX = this.x + Math.cos(angle) * this.speed;
+                    const newY = this.y + Math.sin(angle) * this.speed;
+                    if (!this.isColliding(newX, this.y)) this.x = newX;
+                    if (!this.isColliding(this.x, newY)) this.y = newY;
+                }
+                
+                const now = Date.now();
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    const angleToPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                    
+                    if (this.type === 'anton') {
+                        // Log throw
+                        projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer));
+                        projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer + 0.5));
+                        projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer - 0.5));
+                    } else if (this.type === 'donut') {
+                         projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer));
+                         projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer + 0.3));
+                         projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer - 0.3));
+                    } else if (this.type === 'lazarus_final') {
+                         projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer));
+                         setTimeout(() => projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer)), 200);
+                    } else {
+                        projectiles.push(new MiniLazarus(this.x, this.y, angleToPlayer));
+                    }
+                    this.lastAttackTime = now;
+                }
+            }
+             takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    boss = null; 
+                    checkLevelComplete();
+                }
+            }
+        }
+
+        class Enemy {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = TILE_SIZE * 0.8;
+                this.isDLC = currentLevel >= DLC_START_INDEX && currentLevel !== SECRET_LEVEL_INDEX;
+
+                this.maxHealth = 30 + (currentLevel * 10);
+                this.speed = 1.5 + (currentLevel * 0.2);
+                this.damage = 5 + (currentLevel * 2);
+
+                if (this.isDLC) {
+                    this.maxHealth = 45 + (currentLevel * 8); 
+                    this.speed = 1.6 + (currentLevel * 0.05);
+                    this.damage = 10 + (currentLevel * 2);
+                }
+
+                this.health = this.maxHealth;
+                this.attackCooldown = 1000; this.lastAttackTime = 0; this.aggroRange = TILE_SIZE * 6;
+            }
+            draw() {
+                ctx.fillStyle = this.isDLC ? colors.sugarEnemy : colors.enemy; 
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+                let char = 'L';
+                if (this.isDLC) char = currentLevel > 6 ? '🧁' : '🍬';
+                ctx.fillText(char, this.x, this.y);
+
+                if (this.health < this.maxHealth) {
+                    const barWidth = this.size; const barHeight = 5;
+                    const yOffset = this.size / 2 + 5;
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth, barHeight);
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(this.x - barWidth / 2, this.y - yOffset, barWidth * (this.health / this.maxHealth), barHeight);
+                }
+            }
+            isColliding(x, y) {
+                const tileX = Math.floor(x / TILE_SIZE);
+                const tileY = Math.floor(y / TILE_SIZE);
+                const tileType = map[tileY] ? map[tileY][tileX] : 1;
+                return tileType === 1 || tileType === 4 || tileType === 8 || tileType === 9;
+            }
+            update() {
+                const dist = getDistance(this, player);
+                if (dist < this.aggroRange && dist > player.size / 2) {
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    const newX = this.x + Math.cos(angle) * this.speed;
+                    const newY = this.y + Math.sin(angle) * this.speed;
+                    if (!this.isColliding(newX, this.y)) this.x = newX;
+                    if (!this.isColliding(this.x, newY)) this.y = newY;
+                }
+                if (dist < player.size / 2 + 5) {
+                     const now = Date.now();
+                     if (now - this.lastAttackTime > this.attackCooldown) {
+                         player.takeDamage(this.damage);
+                         this.lastAttackTime = now;
+                     }
+                }
+            }
+            takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    enemies = enemies.filter(e => e !== this);
+                    checkLevelComplete();
+                }
+            }
+        }
+
+        // --- Game Setup and Loop ---
+        function loadLevel() {
+            if (currentLevel === SECRET_LEVEL_INDEX) {
+                map = antonMap;
+            } else {
+                map = mapLayout[currentLevel];
+            }
+            
+            const start = findPlayerStart();
+            player.x = start.x;
+            player.y = start.y;
+
+            enemies = [];
+            projectiles = [];
+            boss = null;
+            cereals = []; 
+
+            // Anton Level Setup
+            if (currentLevel === SECRET_LEVEL_INDEX) {
+                boss = new Boss(canvas.width * 0.75, canvas.height / 2, 'anton');
+                createToast("ANTON AWAKENS", "#7c2d12");
+            } else {
+                const levelData = levels[currentLevel];
+
+                // DLC: Cereal
+                if (currentLevel >= DLC_START_INDEX) {
+                     const cerealCount = 3 + Math.floor(Math.random() * 3);
+                     for(let i=0; i<cerealCount; i++) {
+                        const spawn = findValidSpawnPoint();
+                        cereals.push(new Cereal(spawn.x, spawn.y));
+                    }
+                }
+
+                if (levelData.bossType || currentLevel === 3) { 
+                    boss = new Boss(canvas.width * 0.75, canvas.height / 2, levelData.bossType);
+                    if (levelData.bossType) { 
+                         const start = findPlayerStart();
+                         player.x = start.x; player.y = start.y;
+                    }
+                } else {
+                     for (let i = 0; i < levelData.enemyCount; i++) {
+                        const spawnPoint = findValidSpawnPoint();
+                        enemies.push(new Enemy(spawnPoint.x, spawnPoint.y));
+                    }
+                }
+            }
+            updateUI();
+        }
+
+        function activateSecretLevel() {
+            currentLevel = SECRET_LEVEL_INDEX;
+            // ENABLE DEV MODE (Dimka's Computer Hack)
+            isDevMode = true; 
+            player.currentWeapon = 2; // Greatsword
+            player.addPermBuff('speed', 5.0); // MASSIVE SPEED
+            player.addPermBuff('damage', 5.0); // MASSIVE DAMAGE
+            loadLevel();
+            createToast("SYSTEM HACKED: DEV MODE ON", "#3b82f6");
+        }
+
+        function checkLevelComplete() {
+            if (gameState !== 'playing') return;
+            
+            const levelCleared = enemies.length === 0 && !boss;
+
+            if (levelCleared) {
+                if (currentLevel === SECRET_LEVEL_INDEX) {
+                    gameState = 'gameover';
+                    showGUI("SECRET ENDING", "You defeated Anton and stole the logs! Dimka will never know.", "Return to Menu", resetGame);
+                    return;
+                }
+
+                if (gameMode === 'base' && currentLevel === 3) {
+                    gameState = 'gameover';
+                    showGUI("BASE GAME VICTORY!", "You defeated Lazarus! Try the DLC next.", "Return to Menu", resetGame);
+                    return;
+                }
+                
+                if (currentLevel < levels.length - 1) {
+                    gameState = 'levelup';
+                    showGUI("Level Complete!", `You cleared the level.`, "Next Level", () => {
+                        currentLevel++;
+                        loadLevel();
+                        guiMessage.classList.add('hidden');
+                        gameState = 'playing';
+                    });
+                } else {
+                    gameState = 'gameover'; 
+                    showGUI("DLC VICTORY!", "High Fructose Lazarus is defeated! The sugar is gone.", "Return to Menu", resetGame);
+                }
+            }
+        }
+
+        function startGame(mode) {
+            gameState = 'playing';
+            gameMode = mode;
+            isDevMode = false; // Reset hacks
+            guiMenu.classList.add('hidden');
+            uiPanel.classList.remove('hidden');
+            
+            player = new Player(TILE_SIZE * 2, TILE_SIZE * 2);
+            weapons = weaponsConfig;
+            
+            if (gameMode === 'base') {
+                currentLevel = 0;
+            } else {
+                currentLevel = DLC_START_INDEX;
+            }
+
+            startTime = Date.now();
+            setupWeather();
+            setupWeapons();
+            loadLevel();
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+        
+        function resetGame() {
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(weatherInterval);
+            guiMessage.classList.add('hidden');
+            uiPanel.classList.add('hidden');
+            guiMenu.classList.remove('hidden');
+            gameState = 'menu';
+            isDevMode = false;
+        }
+
+        function updateUI() {
+            if (!player) return;
+            healthUI.textContent = player.health;
+            levelUI.textContent = currentLevel === SECRET_LEVEL_INDEX ? "???" : currentLevel + 1;
+
+            if (boss) {
+                enemiesLabelUI.textContent = "Boss HP:";
+                enemiesLeftUI.textContent = `${boss.health}/${boss.maxHealth}`;
+                enemiesLeftUI.className = 'text-purple-400';
+            } else {
+                enemiesLabelUI.textContent = "Enemies:";
+                enemiesLeftUI.textContent = enemies.length;
+                enemiesLeftUI.className = 'text-red-400';
+            }
+
+            statSpeedUI.textContent = `SPD: ${Math.round(player.speedModifier * 100)}%`;
+            statDmgUI.textContent = `DMG: ${Math.round(player.damageModifier * 100)}%`;
+
+            weatherUI.textContent = weather.name;
+            weatherUI.style.color = weather.color;
+        }
+
+        function setupWeather() {
+            let currentTimer = 20;
+            weather = weatherTypes[0];
+            weatherTimerUI.textContent = currentTimer;
+            if(weatherInterval) clearInterval(weatherInterval);
+            weatherInterval = setInterval(() => {
+                if (gameState !== 'playing') return;
+                currentTimer--;
+                if (currentTimer <= 0) {
+                    currentTimer = 20;
+                    const newIndex = Math.floor(Math.random() * weatherTypes.length);
+                    weather = weatherTypes[newIndex];
+                    updateUI();
+                }
+                weatherTimerUI.textContent = currentTimer;
+            }, 1000);
+        }
+        
+        function setupWeapons() {
+            weaponSelectUI.innerHTML = '';
+            weapons.forEach((weapon, index) => {
+                const btn = document.createElement('button');
+                btn.className = `weapon-btn p-2 rounded`;
+                btn.textContent = `${weapon.name} (${weapon.damage} Dmg)`;
+                btn.onclick = () => {
+                    player.currentWeapon = index;
+                    document.querySelectorAll('.weapon-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    btn.blur();
+                };
+                weaponSelectUI.appendChild(btn);
+            });
+            weaponSelectUI.children[0].classList.add('active');
+        }
+
+        function drawMap() {
+            for (let y = 0; y < map.length; y++) {
+                for (let x = 0; x < map[y].length; x++) {
+                    ctx.fillStyle = colors.tiles[map[y][x]] || 'black';
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+        }
+        
+        function gameLoop() {
+            if (gameState === 'playing') {
+                player.update();
+                enemies.forEach(enemy => enemy.update());
+                if (boss) boss.update();
+                
+                cereals = cereals.filter(c => !c.checkCollision());
+
+                projectiles.forEach(p => p.update());
+                projectiles = projectiles.filter(p => p.x > 0 && p.x < canvas.width && p.y > 0 && p.y < canvas.height);
+                
+                updateTimer();
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawMap();
+            cereals.forEach(c => c.draw());
+            projectiles.forEach(p => p.draw());
+            enemies.forEach(enemy => enemy.draw());
+            if (boss) boss.draw();
+            player.draw();
+            updateUI();
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Event Listeners ---
+        startBaseBtn.addEventListener('click', () => startGame('base'));
+        startDlcBtn.addEventListener('click', () => startGame('dlc'));
+        
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+        canvas.addEventListener('mousedown', e => {
+            if (gameState === 'playing') player.attack(); 
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+        
+    </script>
+</body>
+</html>
