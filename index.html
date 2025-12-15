@@ -115,6 +115,13 @@
         <header class="text-center mb-12">
             <h1 class="text-5xl font-bold mb-2">Weather duck games</h1>
             <p class="text-xl">some games we made</p>
+            <div class="mt-6 flex flex-col items-center gap-2">
+                <div class="flex border border-black" role="group" aria-label="Launch mode">
+                    <button id="mode-desktop" type="button" class="px-4 py-2">Desktop</button>
+                    <button id="mode-mobile" type="button" class="px-4 py-2 border-l border-black">Mobile</button>
+                </div>
+                <div class="text-sm">Mode: <span id="mode-value"></span></div>
+            </div>
         </header>
 
         <!-- SECTION 1: BEST GAMES (BIG) -->
@@ -188,6 +195,46 @@
         // List of games that require the back button to be centered (special cases)
         const centerButtonGames = ['asgore-runs-over-dess.html', 'math-hell.html', '5d-platformer.html'];
 
+        const launchModeStorageKey = 'launchMode';
+        const launchModes = { desktop: 'desktop', mobile: 'mobile' };
+        const mobileWrapperPage = 'mobile.html';
+        const mobileWrappedGameUrls = new Set(['frontend/weather-duck-rpg.html']);
+
+        function getLaunchMode() {
+            const stored = localStorage.getItem(launchModeStorageKey);
+            return stored === launchModes.mobile ? launchModes.mobile : launchModes.desktop;
+        }
+
+        function setLaunchMode(mode) {
+            const next = mode === launchModes.mobile ? launchModes.mobile : launchModes.desktop;
+            localStorage.setItem(launchModeStorageKey, next);
+            updateLaunchModeUi(next);
+        }
+
+        function updateLaunchModeUi(mode) {
+            const desktopBtn = document.getElementById('mode-desktop');
+            const mobileBtn = document.getElementById('mode-mobile');
+            const modeValue = document.getElementById('mode-value');
+
+            if (!desktopBtn || !mobileBtn || !modeValue) return;
+
+            const isMobile = mode === launchModes.mobile;
+            modeValue.textContent = isMobile ? 'Mobile' : 'Desktop';
+
+            desktopBtn.className = isMobile ? 'px-4 py-2 bg-white text-black' : 'px-4 py-2 bg-black text-white';
+            mobileBtn.className = isMobile ? 'px-4 py-2 border-l border-black bg-black text-white' : 'px-4 py-2 border-l border-black bg-white text-black';
+
+            desktopBtn.setAttribute('aria-pressed', String(!isMobile));
+            mobileBtn.setAttribute('aria-pressed', String(isMobile));
+        }
+
+        function resolveGameLaunchUrl(gameUrl) {
+            const mode = getLaunchMode();
+            if (mode !== launchModes.mobile) return gameUrl;
+            if (!mobileWrappedGameUrls.has(gameUrl)) return gameUrl;
+            return `${mobileWrapperPage}?target=${encodeURIComponent(gameUrl)}`;
+        }
+
 
         // ==========================================
         // RENDER LOGIC (Do not need to touch below)
@@ -220,6 +267,12 @@
         // Initialize display
         renderGames();
 
+        updateLaunchModeUi(getLaunchMode());
+        const desktopBtn = document.getElementById('mode-desktop');
+        const mobileBtn = document.getElementById('mode-mobile');
+        if (desktopBtn) desktopBtn.addEventListener('click', () => setLaunchMode(launchModes.desktop));
+        if (mobileBtn) mobileBtn.addEventListener('click', () => setLaunchMode(launchModes.mobile));
+
         // ==========================================
         // VIEW CONTROLLER
         // ==========================================
@@ -231,6 +284,7 @@
 
         function showGame(gameUrl) {
             const gameFile = gameUrl.split('/').pop();
+            const resolvedUrl = resolveGameLaunchUrl(gameUrl);
             
             // Check if this game is in the special center-button list
             if (centerButtonGames.includes(gameFile)) {
@@ -246,7 +300,7 @@
             document.body.style.overflow = 'hidden';
             gameMenu.style.display = 'none';
             gameView.style.display = 'block';
-            gameFrame.src = gameUrl;
+            gameFrame.src = resolvedUrl;
         }
 
         function showMenu() {
