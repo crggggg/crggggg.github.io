@@ -1,0 +1,1541 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Duck vs. IMT Lazarus</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            background-color: #87ceeb; /* Sky Blue */
+            display: block;
+            border: 4px solid #4a5568;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem; /* Reduced gap */
+            position: relative;
+        }
+        .ui-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 800px;
+            padding: 10px;
+            background-color: #2d3748;
+            border-radius: 8px;
+            border: 4px solid #4a5568;
+        }
+        #times-panel {
+             font-size: 0.8rem;
+             justify-content: space-around;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            font-size: 1.5rem;
+            z-index: 100;
+            display: none;
+            border: 4px solid #a0aec0;
+            min-width: 400px;
+        }
+        /* Tutorial Modal Styles */
+        #tutorial-modal, #tas-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: none; /* Changed to none by default, JS handles it */
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            border-radius: 8px;
+        }
+        .tutorial-content {
+            background-color: #2d3748;
+            border: 4px solid #4a5568; /* Standard border */
+            border-radius: 8px;
+            padding: 2rem;
+            width: 600px;
+            text-align: center;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .key-badge {
+            display: inline-block;
+            background-color: #4a5568;
+            border: 2px solid #718096;
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: #fff;
+            font-size: 0.8rem;
+            margin: 0 4px;
+        }
+        .button {
+            background-color: #48bb78;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            border-bottom: 4px solid #2f855a;
+            transition: all 0.1s ease-in-out;
+            font-size: 1rem;
+        }
+        .button:hover {
+            transform: translateY(2px);
+            border-bottom-width: 2px;
+        }
+        .button.small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            border-bottom-width: 3px;
+        }
+        .button.small:hover {
+            transform: translateY(1px);
+            border-bottom-width: 2px;
+        }
+        .button:disabled {
+            background-color: #718096;
+            border-bottom-color: #4a5568;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        #physics-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            font-size: 0.7rem;
+        }
+        #physics-controls label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 8px;
+            background: #4a5568;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #a0aec0;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        input[type="range"]:disabled {
+            opacity: 0.3;
+            filter: grayscale(100%);
+            cursor: not-allowed;
+        }
+        #level-select {
+            background-color: #4a5568;
+            border: 2px solid #a0aec0;
+            border-radius: 4px;
+            color: white;
+            padding: 4px;
+            font-family: 'Press Start 2P', cursive;
+        }
+        [contenteditable="true"]:focus {
+            outline: 2px solid #f6e05e; /* yellow-400 */
+            background-color: #4a5568;
+        }
+        .new-record {
+            color: #f6e05e; /* yellow-400 */
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        #god-mode-indicator {
+            position: fixed;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+            font-size: 3rem;
+            font-weight: bold;
+            display: none;
+            background: linear-gradient(to right, #ef5350, #f48fb1, #7e57c2, #2196f3, #26c6da, #43a047, #eeff41, #f9a825, #ff5722);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            background-size: 200% auto;
+            animation: shine 2s linear infinite;
+            z-index: 50;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+        #tas-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 10px;
+            color: #00ff00;
+            display: none;
+            pointer-events: none;
+            white-space: pre;
+            border: 1px solid #00ff00;
+        }
+        .tas-segment-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin: 10px 0;
+            font-size: 0.6rem;
+        }
+        .segment-status {
+            background: #2d3748;
+            padding: 5px;
+            border: 1px solid #4a5568;
+            border-radius: 4px;
+            color: #718096;
+        }
+        .segment-status.done {
+            background: #2f855a;
+            color: white;
+            border-color: #48bb78;
+        }
+        .segment-status.current {
+            border-color: #f6e05e;
+            color: #f6e05e;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h1 class="text-3xl">Weather Duck vs. IMT Lazarus</h1>
+    <div id="ui-container" class="ui-panel">
+        <div id="timer" class="text-xl">Time: 0.000s</div>
+        <div class="text-lg">Controls: A/D, W, R</div>
+    </div>
+    <div id="times-panel" class="ui-panel">
+        <div id="best-full-run" contenteditable="true">Best Full Run: --</div>
+        <div id="sum-of-best">Sum of Best: --</div>
+        <div id="level-best" contenteditable="true">Level Best: --</div>
+    </div>
+    <div id="controls-container" class="ui-panel">
+        <div id="physics-controls">
+            <label>Gravity: <span id="gravity-value">1.2</span><input type="range" id="gravity-slider" min="0.1" max="2" step="0.1" value="1.2"></label>
+            <label>Jump: <span id="jump-value">18</span><input type="range" id="jump-slider" min="5" max="25" step="1" value="18"></label>
+            <label>Speed: <span id="speed-value">12</span><input type="range" id="speed-slider" min="1" max="24" step="1" value="12"></label>
+        </div>
+        <div id="level-controls" class="flex items-center gap-2">
+            <label for="level-select">Mode:</label>
+            <select id="level-select"></select>
+            <button id="import-button" class="button small">Import Stats</button>
+            <button id="export-button" class="button small">Export Stats</button>
+            <button id="tas-menu-btn" class="button small" style="background-color: #805ad5; border-bottom-color: #553c9a;">TAS Tools</button>
+        </div>
+    </div>
+    
+    <div style="position: relative;">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="tas-overlay"></div>
+    </div>
+    
+    <!-- God Mode Indicator -->
+    <div id="god-mode-indicator">GOD MODE</div>
+    
+    <!-- Tutorial Window -->
+    <div id="tutorial-modal">
+        <div class="tutorial-content">
+            <h2 class="text-2xl mb-6">HOW TO PLAY</h2>
+            
+            <div class="text-left space-y-4 text-xs leading-loose mb-6">
+                <div>
+                    <span class="block mb-1">GOAL:</span> 
+                    Reach the PURPLE PORTAL to escape the level.
+                </div>
+                <hr class="border-gray-600">
+                <div>
+                    <span class="block mb-1">CONTROLS:</span>
+                    <div class="flex items-center mb-2">
+                        <span class="w-24">MOVE</span> 
+                        <span class="key-badge">A</span> / <span class="key-badge">D</span> or <span class="key-badge">←</span> / <span class="key-badge">→</span>
+                    </div>
+                    <div class="flex items-center mb-2">
+                        <span class="w-24">JUMP</span> 
+                        <span class="key-badge">W</span> or <span class="key-badge">↑</span>
+                    </div>
+                    <div class="flex items-center mb-2">
+                        <span class="w-24">RETRY</span> 
+                        <span class="key-badge">Tap R</span>
+                    </div>
+                     <div class="flex items-center">
+                        <span class="w-24">TAS MENU</span> 
+                        <span class="key-badge">T</span>
+                    </div>
+                    <div class="flex items-center mt-4">
+                         <span class="w-24 text-gray-400">GOD MODE</span>
+                         <span class="key-badge">=</span>
+                    </div>
+                </div>
+                <div class="text-center mt-4 text-yellow-400">
+                    Game speed set to 41fps (0.7x) for precision.
+                </div>
+            </div>
+
+            <button id="close-tutorial-btn" class="button text-lg px-8 py-4">START GAME</button>
+        </div>
+    </div>
+
+    <!-- TAS Tutorial Modal -->
+    <div id="tas-modal">
+        <div class="tutorial-content">
+            <h2 class="text-2xl mb-6 text-purple-400">TAS TOOLS</h2>
+            
+            <div class="flex gap-4">
+                <div class="w-1/2 text-left space-y-4 text-xs leading-loose mb-6">
+                    <p>Create individual level (IL) segments. Save them to build a Full Game TAS.</p>
+                    <hr class="border-gray-600">
+                    <div>
+                        <span class="block mb-1">CONTROLS:</span>
+                        <div class="flex items-center mb-2"><span class="w-32">TOGGLE UI</span> <span class="key-badge">T</span></div>
+                        <div class="flex items-center mb-2"><span class="w-32">PAUSE</span> <span class="key-badge">P</span></div>
+                        <div class="flex items-center mb-2"><span class="w-32">ADVANCE</span> <span class="key-badge">.</span></div>
+                        <div class="flex items-center mb-2"><span class="w-32">SAVE STATE</span> <span class="key-badge">1</span></div>
+                        <div class="flex items-center mb-2"><span class="w-32">LOAD STATE</span> <span class="key-badge">2</span></div>
+                        <div class="flex items-center mb-2"><span class="w-32">REPLAY</span> <span class="key-badge">0</span></div>
+                    </div>
+                </div>
+                
+                <div class="w-1/2 bg-gray-800 p-2 rounded">
+                    <h3 class="text-sm mb-2 text-yellow-300">Level Segments</h3>
+                    <div id="tas-segments-list" class="tas-segment-grid">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div class="mt-4 flex flex-col gap-2">
+                        <button id="save-segment-btn" class="button small">Save Current Segment</button>
+                        <hr class="border-gray-600 my-1">
+                        <button id="play-full-tas-btn" class="button small" disabled style="background-color: #805ad5;">Play Full TAS</button>
+                        <button id="export-full-tas-btn" class="button small" disabled style="background-color: #805ad5;">Export Full TAS</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-4 mt-6">
+                <button id="import-tas-btn" class="button small" style="background-color: #4299e1; border-bottom-color: #2b6cb0;">Import TAS</button>
+                <button id="export-tas-btn" class="button small" style="background-color: #ed8936; border-bottom-color: #c05621;">Export Level TAS</button>
+            </div>
+            <div class="mt-4 flex justify-center">
+                 <button id="close-tas-btn" class="button text-lg px-8 py-2" style="background-color: #4a5568; border-bottom-color: #2d3748;">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Box (Game Over / Level Complete) -->
+    <div id="message-box">
+        <p id="message-text"></p>
+        <div class="flex justify-center gap-4 mt-4">
+             <button id="restart-button" class="button">Play Again</button>
+             <button id="next-level-button" class="button" style="display: none;">Next Level</button>
+             <button id="replay-tas-button" class="button" style="display: none; background-color: #805ad5; border-bottom-color: #553c9a;">Watch Replay</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const timerElement = document.getElementById('timer');
+    const messageBox = document.getElementById('message-box');
+    const messageText = document.getElementById('message-text');
+    const restartButton = document.getElementById('restart-button');
+    const nextLevelButton = document.getElementById('next-level-button');
+    const replayTasButton = document.getElementById('replay-tas-button');
+    const levelSelect = document.getElementById('level-select');
+    const bestFullRunElement = document.getElementById('best-full-run');
+    const sumOfBestElement = document.getElementById('sum-of-best');
+    const levelBestElement = document.getElementById('level-best');
+    const importButton = document.getElementById('import-button');
+    const exportButton = document.getElementById('export-button');
+    const tasMenuBtn = document.getElementById('tas-menu-btn');
+    const tasOverlay = document.getElementById('tas-overlay');
+    
+    // TAS Menu Elements
+    const importTasBtn = document.getElementById('import-tas-btn');
+    const exportTasBtn = document.getElementById('export-tas-btn');
+    const saveSegmentBtn = document.getElementById('save-segment-btn');
+    const playFullTasBtn = document.getElementById('play-full-tas-btn');
+    const exportFullTasBtn = document.getElementById('export-full-tas-btn');
+    const tasSegmentsList = document.getElementById('tas-segments-list');
+
+    // Tutorial Elements
+    const tutorialModal = document.getElementById('tutorial-modal');
+    const closeTutorialBtn = document.getElementById('close-tutorial-btn');
+    const tasModal = document.getElementById('tas-modal');
+    const closeTasBtn = document.getElementById('close-tas-btn');
+    
+    // God Mode Elements
+    const godModeIndicator = document.getElementById('god-mode-indicator');
+
+    // Physics Sliders
+    const gravitySlider = document.getElementById('gravity-slider');
+    const jumpSlider = document.getElementById('jump-slider');
+    const speedSlider = document.getElementById('speed-slider');
+    const gravityValue = document.getElementById('gravity-value');
+    const jumpValue = document.getElementById('jump-value');
+    const speedValue = document.getElementById('speed-value');
+
+    // Game constants
+    const PLAYER_WIDTH = 40;
+    const PLAYER_HEIGHT = 40;
+    const MS_PER_UPDATE = 24; // ~41.6 FPS
+
+    // Adjustable physics
+    let GRAVITY = 1.2;
+    let JUMP_FORCE = -18;
+    let PLAYER_SPEED = 12;
+
+    // Game state
+    let player, platforms, hazards, goal, keys, timer, gameRunning, currentLevelIndex;
+    let gameMode = 'full'; // 'full' or 'training'
+    let bestTimes;
+    let timerHasStarted = false;
+    let inputAllowed = false; // Flag to block input during tutorial
+    let godMode = false;
+    
+    // TAS State
+    let tasEnabled = false;
+    let tasPaused = false;
+    let tasFrame = 0;
+    let inputHistory = [];
+    let savedState = null;
+    let isReplaying = false;
+    let tasLevelSegments = []; // Stores inputHistory for each level
+    let isFullTasReplay = false;
+    let accumulatedTasTime = 0; // For full run TAS timing
+    let firstInputFrame = null; // For Level 1 start delay logic
+    
+    // Timer variables
+    let mainTimerInterval;
+    let levelStartTime = 0;
+    let lastAttemptStartTime = 0;
+    let totalPausedTime = 0;
+    let pauseStartTime = 0;
+    
+    // Game loop timing variables
+    let lastTime = 0;
+    let lag = 0.0;
+    
+    // Restart/Reset logic
+    let rKeyTimeout = null;
+
+    // Levels Data
+    const levels = [
+        { // Level 1
+            start: {x: 50, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'platform' },
+                { x: 200, y: 500, width: 100, height: 20, type: 'platform' },
+                { x: 350, y: 420, width: 100, height: 20, type: 'platform' },
+                { x: 200, y: 340, width: 80, height: 20, type: 'platform' },
+                { x: 400, y: 280, width: 20, height: 20, type: 'platform' },
+                { x: 500, y: 220, width: 100, height: 20, type: 'platform' },
+                { x: 0, y: 200, width: 300, height: 20, type: 'hazard' },
+                { x: 50, y: 180, width: 50, height: 20, type: 'platform' },
+                { x: 200, y: 140, width: 50, height: 20, type: 'platform' },
+                { x: 400, y: 100, width: 250, height: 20, type: 'platform' },
+                { x: 700, y: 50, width: 100, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 2
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 150, height: 20, type: 'platform' },
+                { x: 250, y: 540, width: 100, height: 20, type: 'platform' },
+                { x: 450, y: 500, width: 100, height: 20, type: 'platform' },
+                { x: 650, y: 460, width: 150, height: 20, type: 'platform' },
+                { x: 550, y: 360, width: 50, height: 20, type: 'platform' },
+                { x: 350, y: 300, width: 50, height: 20, type: 'platform' },
+                { x: 150, y: 240, width: 50, height: 20, type: 'platform' },
+                { x: 0, y: 180, width: 100, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 3
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 100, height: 20, type: 'platform' },
+                { x: 150, y: 520, width: 50, height: 20, type: 'platform' },
+                { x: 30, y: 460, width: 50, height: 20, type: 'platform' },
+                { x: 150, y: 400, width: 50, height: 20, type: 'platform' },
+                { x: 30, y: 340, width: 50, height: 20, type: 'platform' },
+                { x: 180, y: 280, width: 50, height: 20, type: 'platform' }, 
+                { x: 350, y: 220, width: 150, height: 20, type: 'platform' }, 
+                { x: 600, y: 160, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 100, width: 50, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 4
+            start: {x: 20, y: 400},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'hazard' },
+                { x: 0, y: 450, width: 100, height: 20, type: 'platform' },
+                { x: 150, y: 420, width: 20, height: 20, type: 'platform' },
+                { x: 220, y: 420, width: 20, height: 20, type: 'platform' },
+                { x: 290, y: 420, width: 20, height: 20, type: 'platform' },
+                { x: 380, y: 380, width: 100, height: 20, type: 'platform' },
+                { x: 380, y: 360, width: 20, height: 20, type: 'hazard' },
+                { x: 550, y: 320, width: 100, height: 20, type: 'platform' },
+                { x: 700, y: 260, width: 100, height: 20, type: 'platform' },
+                { x: 550, y: 200, width: 100, height: 20, type: 'platform' },
+                { x: 380, y: 140, width: 100, height: 20, type: 'platform' },
+                { x: 200, y: 80, width: 80, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 5
+            start: {x: 380, y: 520},
+            layout: [
+                 { x: 350, y: 580, width: 100, height: 20, type: 'platform' },
+                 { x: 350, y: 500, width: 100, height: 20, type: 'platform' },
+                 { x: 250, y: 440, width: 300, height: 20, type: 'platform' },
+                 { x: 250, y: 380, width: 50, height: 20, type: 'platform' }, 
+                 { x: 150, y: 320, width: 50, height: 20, type: 'platform' },
+                 { x: 0, y: 260, width: 100, height: 20, type: 'hazard' }, 
+                 { x: 500, y: 380, width: 50, height: 20, type: 'platform' }, 
+                 { x: 600, y: 320, width: 50, height: 20, type: 'platform' },
+                 { x: 700, y: 260, width: 100, height: 20, type: 'platform' },
+                 { x: 700, y: 200, width: 50, height: 20, type: 'platform' },
+                 { x: 550, y: 140, width: 100, height: 20, type: 'platform' },
+                 { x: 350, y: 80, width: 100, height: 20, type: 'platform', goal: true },
+            ]
+        },
+         { // Level 6
+            start: {x: 20, y: 520},
+            layout: [
+                 { x: 0, y: 580, width: 80, height: 20, type: 'platform' },
+                 { x: 120, y: 550, width: 15, height: 20, type: 'platform' },
+                 { x: 180, y: 520, width: 15, height: 20, type: 'platform' },
+                 { x: 240, y: 490, width: 15, height: 20, type: 'platform' },
+                 { x: 180, y: 430, width: 15, height: 20, type: 'platform' },
+                 { x: 240, y: 370, width: 15, height: 20, type: 'platform' },
+                 { x: 350, y: 370, width: 100, height: 20, type: 'platform' },
+                 { x: 500, y: 400, width: 15, height: 20, type: 'hazard' },
+                 { x: 550, y: 340, width: 15, height: 20, type: 'platform' },
+                 { x: 600, y: 280, width: 15, height: 20, type: 'platform' },
+                 { x: 680, y: 220, width: 120, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 7
+            start: {x: 380, y: 20},
+            layout: [
+                { x: 350, y: 80, width: 100, height: 20, type: 'platform' },
+                { x: 200, y: 180, width: 80, height: 20, type: 'platform' },
+                { x: 500, y: 180, width: 80, height: 20, type: 'platform' },
+                { x: 0, y: 250, width: 350, height: 10, type: 'hazard' }, 
+                { x: 450, y: 250, width: 350, height: 10, type: 'hazard' }, 
+                { x: 350, y: 320, width: 100, height: 20, type: 'platform' },
+                { x: 50, y: 400, width: 100, height: 20, type: 'platform' },
+                { x: 650, y: 400, width: 100, height: 20, type: 'platform' },
+                { x: 0, y: 580, width: 350, height: 20, type: 'platform' },
+                { x: 450, y: 580, width: 350, height: 20, type: 'platform' },
+                { x: 380, y: 520, width: 40, height: 20, type: 'platform', goal: true },
+            ]
+        },
+         { // Level 8
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'hazard' },
+                { x: 0, y: 560, width: 50, height: 20, type: 'platform' },
+                { x: 100, y: 500, width: 50, height: 20, type: 'platform' },
+                { x: 50, y: 440, width: 20, height: 20, type: 'hazard' },
+                { x: 200, y: 420, width: 100, height: 20, type: 'platform' },
+                { x: 350, y: 360, width: 100, height: 20, type: 'platform' },
+                { x: 250, y: 300, width: 20, height: 20, type: 'hazard' },
+                { x: 450, y: 280, width: 50, height: 20, type: 'platform' },
+                { x: 600, y: 220, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 160, width: 50, height: 20, type: 'platform' },
+                { x: 600, y: 100, width: 50, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 9
+            start: {x: 20, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'platform' },
+                { x: 100, y: 540, width: 600, height: 10, type: 'hazard' },
+                { x: 150, y: 500, width: 20, height: 20, type: 'platform' },
+                { x: 200, y: 460, width: 20, height: 20, type: 'platform' },
+                { x: 250, y: 500, width: 20, height: 20, type: 'platform' },
+                { x: 300, y: 460, width: 20, height: 20, type: 'platform' },
+                { x: 350, y: 500, width: 20, height: 20, type: 'platform' },
+                { x: 400, y: 460, width: 200, height: 20, type: 'platform' },
+                { x: 650, y: 420, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 380, width: 50, height: 20, type: 'platform' },
+                { x: 650, y: 320, width: 50, height: 20, type: 'platform' },
+                { x: 750, y: 260, width: 50, height: 20, type: 'platform' },
+                { x: 400, y: 200, width: 300, height: 20, type: 'platform' },
+                { x: 100, y: 150, width: 200, height: 20, type: 'platform', goal: true },
+            ]
+        },
+        { // Level 10
+            start: {x: 380, y: 520},
+            layout: [
+                { x: 0, y: 580, width: 800, height: 20, type: 'hazard' },
+                { x: 350, y: 560, width: 100, height: 20, type: 'platform' },
+                { x: 250, y: 480, width: 50, height: 20, type: 'platform' },
+                { x: 450, y: 480, width: 50, height: 20, type: 'platform' },
+                { x: 100, y: 400, width: 100, height: 10, type: 'hazard' },
+                { x: 600, y: 400, width: 100, height: 10, type: 'hazard' },
+                { x: 350, y: 380, width: 100, height: 20, type: 'platform' },
+                { x: 150, y: 300, width: 15, height: 20, type: 'platform' },
+                { x: 550, y: 300, width: 15, height: 20, type: 'platform' },
+                { x: 350, y: 220, width: 15, height: 20, type: 'platform' },
+                { x: 0, y: 150, width: 250, height: 20, type: 'platform' },
+                { x: 550, y: 150, width: 250, height: 20, type: 'platform' },
+                { x: 300, y: 80, width: 200, height: 20, type: 'platform', goal: true },
+            ]
+        },
+    ];
+
+    // Physics Engine
+    function updatePhysics(entity, input, currentPlatforms, currentHazards, currentGoal) {
+        // Horizontal Movement
+        if (input.left) entity.velocityX = -PLAYER_SPEED;
+        else if (input.right) entity.velocityX = PLAYER_SPEED;
+        else entity.velocityX = 0;
+
+        // Jump
+        if (input.jump && entity.onGround) {
+            entity.velocityY = JUMP_FORCE;
+            entity.onGround = false;
+        }
+
+        // Gravity
+        if (entity.velocityY < 0 && !input.jump) {
+            entity.velocityY += GRAVITY * 2.5;
+        } else {
+            entity.velocityY += GRAVITY;
+        }
+
+        entity.x += entity.velocityX;
+        entity.y += entity.velocityY;
+        entity.onGround = false;
+
+        // Boundaries
+        if (entity.x < 0) entity.x = 0;
+        if (entity.x + entity.width > canvas.width) entity.x = canvas.width - entity.width;
+        if (entity.y > canvas.height) return 'dead';
+
+        // Collision Resolution
+        let status = 'alive';
+        
+        currentPlatforms.forEach(p => {
+            if (entity.x < p.x + p.width && entity.x + entity.width > p.x &&
+                entity.y < p.y + p.height && entity.y + entity.height > p.y &&
+                entity.velocityY >= 0 && entity.y + entity.height - entity.velocityY <= p.y + 1) {
+                entity.y = p.y - entity.height;
+                entity.velocityY = 0;
+                entity.onGround = true;
+            }
+        });
+        
+        currentHazards.forEach(h => {
+             if (entity.x < h.x + h.width && entity.x + entity.width > h.x &&
+                entity.y < h.y + h.height && entity.y + entity.height > h.y) { 
+                status = 'dead'; 
+            }
+        });
+        
+        if (currentGoal) {
+            if (entity.x < currentGoal.x + currentGoal.width && entity.x + entity.width > currentGoal.x &&
+                entity.y < currentGoal.y + currentGoal.height && entity.y + entity.height > currentGoal.y) {
+                status = 'win';
+            }
+        }
+        
+        return status;
+    }
+
+    const playerProto = {
+        x: 100, y: 500, width: PLAYER_WIDTH, height: PLAYER_HEIGHT, velocityX: 0, velocityY: 0, onGround: false,
+        draw() {
+            if (godMode) {
+                const hue = (performance.now() / 2) % 360;
+                ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+            } else if (isReplaying) {
+                ctx.fillStyle = '#805ad5'; // Purple for replay
+            } else {
+                ctx.fillStyle = '#FFD700'; 
+            }
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            
+            ctx.fillStyle = '#FFA500';
+            const beakX = this.velocityX >= 0 ? this.x + this.width : this.x - 10;
+            ctx.fillRect(beakX, this.y + this.height * 0.5, 10, 5);
+            ctx.fillStyle = '#000000';
+            const eyeX = this.velocityX > 0 ? this.x + this.width * 0.7 : this.x + this.width * 0.2;
+            ctx.fillRect(eyeX, this.y + this.height * 0.2, 5, 5);
+        },
+        update(input) {
+            const status = updatePhysics(this, input, platforms, hazards, goal);
+            if (status === 'dead') endGame(false);
+            if (status === 'win') endGame(true);
+        }
+    };
+
+    function drawGameObjects() {
+        ctx.fillStyle = '#654321'; platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
+        ctx.fillStyle = '#FF0000'; hazards.forEach(h => ctx.fillRect(h.x, h.y, h.width, h.height));
+        ctx.save();
+        ctx.fillStyle = '#4B0082'; ctx.shadowColor = 'rgba(255, 0, 255, 0.7)'; ctx.shadowBlur = 15;
+        ctx.fillRect(goal.x, goal.y - 50, goal.width, goal.height + 50);
+        ctx.fillStyle = '#FF00FF';
+        ctx.fillRect(goal.x + 10, goal.y - 35, 10, 10); ctx.fillRect(goal.x + goal.width - 20, goal.y - 35, 10, 10);
+        ctx.restore();
+    }
+    
+    function renderTrajectories() {
+        if (!tasEnabled || !tasPaused) return;
+        const scenarios = [
+            { name: 'Neutral', input: { left: false, right: false, jump: false }, color: 'rgba(255, 255, 255, 0.5)' },
+            { name: 'Jump', input: { left: false, right: false, jump: true }, color: 'rgba(255, 255, 0, 0.7)' },
+            { name: 'Right', input: { left: false, right: true, jump: false }, color: 'rgba(200, 200, 200, 0.5)' },
+            { name: 'Left', input: { left: true, right: false, jump: false }, color: 'rgba(200, 200, 200, 0.5)' },
+            { name: 'Jump+Right', input: { left: false, right: true, jump: true }, color: 'rgba(0, 255, 0, 0.7)' },
+            { name: 'Jump+Left', input: { left: true, right: false, jump: true }, color: 'rgba(0, 100, 255, 0.7)' }
+        ];
+
+        scenarios.forEach(scen => {
+            let ghost = { ...player };
+            ctx.beginPath();
+            ctx.moveTo(ghost.x + ghost.width/2, ghost.y + ghost.height/2);
+            ctx.strokeStyle = scen.color;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 60; i++) {
+                updatePhysics(ghost, scen.input, platforms, hazards, null);
+                ctx.lineTo(ghost.x + ghost.width/2, ghost.y + ghost.height/2);
+            }
+            ctx.stroke();
+            ctx.fillStyle = scen.color;
+            ctx.beginPath();
+            ctx.arc(ghost.x + ghost.width/2, ghost.y + ghost.height/2, 3, 0, Math.PI*2);
+            ctx.fill();
+        });
+    }
+
+    function getCurrentInput() {
+        if (isReplaying) {
+            return inputHistory[tasFrame] || { left: false, right: false, jump: false };
+        }
+        return {
+            left: keys['a'] || keys['arrowleft'],
+            right: keys['d'] || keys['arrowright'],
+            jump: keys['w'] || keys['arrowup']
+        };
+    }
+    
+    function updateGame() { 
+        if (!gameRunning) return;
+        
+        const input = getCurrentInput();
+        
+        // Detect first input for timer logic (Level 1 only)
+        if (currentLevelIndex === 0 && firstInputFrame === null) {
+            if (input.left || input.right || input.jump) {
+                firstInputFrame = tasFrame;
+            }
+        }
+        
+        if (tasEnabled && !isReplaying) {
+            inputHistory[tasFrame] = { ...input };
+        }
+        
+        player.update(input); 
+        
+        if (gameRunning) {
+            tasFrame++;
+        }
+    }
+
+    function renderGame() {
+        if (!timerHasStarted && !tasEnabled) {
+            timerElement.textContent = `Time: 0.000s`;
+        } else {
+            let elapsed;
+            if (tasEnabled) {
+                if (currentLevelIndex === 0) {
+                    // For Level 1: Time = Current Frame - First Input Frame
+                    // If no input yet, time is 0.
+                    if (firstInputFrame === null) {
+                        elapsed = 0;
+                    } else {
+                        elapsed = Math.max(0, (tasFrame - firstInputFrame) * MS_PER_UPDATE);
+                    }
+                } else {
+                    // For Level 2+: Time = Accumulated + Current Frame Time
+                    elapsed = accumulatedTasTime + (tasFrame * MS_PER_UPDATE);
+                }
+            } else {
+                let now = performance.now();
+                if (gameMode === 'full' && currentLevelIndex === 0 && !timerHasStarted) {
+                     elapsed = 0;
+                } else {
+                    const startTime = gameMode === 'full' ? mainTimerInterval : levelStartTime;
+                    elapsed = now - startTime;
+                    if (gameMode === 'full') {
+                        elapsed -= totalPausedTime;
+                    }
+                    if (currentLevelIndex === 0 && timerHasStarted) {
+                        // For normal gameplay, timer handles itself via start times, 
+                        // but logic requested was "starts at first input". 
+                        // The existing logic sets start time on input, so it should be fine.
+                        // We will double check to ensure it displays 0.000 until then.
+                         if (elapsed < 0) elapsed = 0;
+                    }
+                }
+            }
+            timer = elapsed / 1000;
+            const tasInfo = tasEnabled ? `(TAS: ${isReplaying ? 'Play' : 'Rec'} | Frame ${tasFrame})` : '';
+            timerElement.textContent = `Time: ${timer.toFixed(3)}s ${tasInfo}`;
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGameObjects();
+        player.draw();
+        
+        if (tasEnabled && tasPaused) {
+            renderTrajectories();
+        }
+    }
+    
+    function gameLoop(currentTime) {
+        if (!gameRunning) { lastTime = 0; return; }
+        
+        if (tasEnabled) {
+            renderGame();
+            if (!tasPaused && !isReplaying) {
+                if (lastTime === 0) lastTime = currentTime;
+                const elapsed = currentTime - lastTime;
+                if (elapsed >= MS_PER_UPDATE) {
+                    updateGame();
+                    lastTime = currentTime;
+                }
+            } else if (isReplaying) {
+                 if (lastTime === 0) lastTime = currentTime;
+                const elapsed = currentTime - lastTime;
+                if (elapsed >= MS_PER_UPDATE) {
+                    if (tasFrame >= inputHistory.length) {
+                         // End of input history for this segment
+                        if (!isFullTasReplay) {
+                             isReplaying = false;
+                             tasPaused = true;
+                        } else {
+                            // If full replay, we might just be waiting for physics to resolve a win/death
+                            // But usually inputs should cover it. 
+                            // If we run out of inputs, just wait (send neutral inputs)
+                             updateGame(); 
+                        }
+                    } else {
+                        updateGame();
+                    }
+                    lastTime = currentTime;
+                }
+            }
+            requestAnimationFrame(gameLoop);
+            updateTasOverlay();
+            return;
+        }
+        
+        if (lastTime === 0) { lastTime = currentTime; }
+        const elapsed = currentTime - lastTime;
+        lastTime = currentTime;
+        lag += elapsed;
+        while (lag >= MS_PER_UPDATE) { updateGame(); lag -= MS_PER_UPDATE; }
+        renderGame();
+        requestAnimationFrame(gameLoop);
+    }
+    
+    function updateTasOverlay() {
+        if (!tasEnabled) {
+            tasOverlay.style.display = 'none';
+            return;
+        }
+        tasOverlay.style.display = 'block';
+        tasOverlay.innerHTML = `STATUS: ${isReplaying ? (isFullTasReplay ? 'FULL RUN' : 'REPLAY') : (tasPaused ? 'PAUSED' : 'RECORDING')}\nFRAME: ${tasFrame}\nINPUTS: ${inputHistory.length}`;
+        tasOverlay.style.borderColor = isReplaying ? '#805ad5' : (tasPaused ? '#f6e05e' : '#f56565');
+        tasOverlay.style.color = isReplaying ? '#d6bcfa' : (tasPaused ? '#fefcbf' : '#fc8181');
+    }
+
+    function loadLevel(levelIndex, isTraining = false) {
+        if (pauseStartTime > 0 && gameMode === 'full') {
+            totalPausedTime += performance.now() - pauseStartTime;
+            pauseStartTime = 0;
+        }
+
+        if (timerHasStarted) {
+            if (isTraining) {
+                levelStartTime = performance.now();
+            }
+            lastAttemptStartTime = performance.now();
+        }
+       
+        currentLevelIndex = levelIndex;
+        const levelData = levels[levelIndex];
+        player = Object.create(playerProto);
+        player.x = levelData.start.x; player.y = levelData.start.y;
+        player.velocityX = 0; player.velocityY = 0; player.onGround = false;
+        platforms = levelData.layout.filter(item => item.type === 'platform');
+        hazards = levelData.layout.filter(item => item.type === 'hazard');
+        const goalPlatform = levelData.layout.find(item => item.goal);
+        goal = { x: goalPlatform.x + goalPlatform.width/2 - 20, y: goalPlatform.y - 50, width: 40, height: 50 };
+        keys = {};
+        gameRunning = true;
+        
+        // Timer Reset Logic for Level 1 (or new attempt)
+        if (levelIndex === 0) {
+            firstInputFrame = null;
+        }
+
+        // Reset TAS state for new level unless it's a full run transition
+        if (!isFullTasReplay && !isReplaying && !savedState) { 
+             tasFrame = 0;
+             inputHistory = [];
+        }
+        if (savedState) savedState = null;
+
+        messageBox.style.display = 'none';
+        nextLevelButton.style.display = 'none';
+        replayTasButton.style.display = 'none';
+        restartButton.textContent = 'Play Again';
+        updateBestTimeDisplay();
+        lastTime = 0; lag = 0.0;
+        requestAnimationFrame(gameLoop);
+    }
+    
+    function endGame(win) {
+        if (!gameRunning) return;
+        gameRunning = false;
+        
+        // Handle Full TAS Replay Transition
+        if (win && tasEnabled && isFullTasReplay) {
+            // Add current level time to accumulated
+            if (currentLevelIndex === 0) {
+                 accumulatedTasTime += Math.max(0, (tasFrame - firstInputFrame) * MS_PER_UPDATE);
+            } else {
+                 accumulatedTasTime += (tasFrame * MS_PER_UPDATE);
+            }
+
+            if (currentLevelIndex < levels.length - 1) {
+                // Determine next level inputs
+                const nextLevel = currentLevelIndex + 1;
+                // Load Next Level
+                loadLevel(nextLevel, true);
+                
+                // Set up TAS for next level
+                tasEnabled = true;
+                isReplaying = true;
+                isFullTasReplay = true; // Maintain flag
+                tasFrame = 0;
+                inputHistory = tasLevelSegments[nextLevel] || [];
+                tasPaused = false;
+                
+                return; // Skip the rest of endGame logic
+            }
+        }
+
+        if (win) {
+            // Timer Calculation
+            let cleanLevelTime;
+            if (tasEnabled) {
+                 if (currentLevelIndex === 0) {
+                    cleanLevelTime = Math.max(0, (tasFrame - firstInputFrame) * MS_PER_UPDATE) / 1000;
+                 } else {
+                    cleanLevelTime = (tasFrame * MS_PER_UPDATE) / 1000;
+                 }
+            } else {
+                cleanLevelTime = (performance.now() - lastAttemptStartTime) / 1000;
+            }
+
+            let newRecord = false;
+            
+            if (!godMode && !tasEnabled) {
+                if (!bestTimes.levels[currentLevelIndex] || cleanLevelTime < bestTimes.levels[currentLevelIndex]) {
+                    bestTimes.levels[currentLevelIndex] = cleanLevelTime;
+                    newRecord = true;
+                    saveBestTimes();
+                }
+            }
+
+            let message = '';
+            if (newRecord) message += `<span class="new-record">New Record!</span><br>`;
+            if (godMode) message += `<span style="color: #cbd5e0; font-size: 0.8rem;">(God Mode Active - No Record)</span><br>`;
+            if (tasEnabled) message += `<span style="color: #d6bcfa; font-size: 0.8rem;">(TAS Run - Frame ${tasFrame})</span><br>`;
+
+            if (gameMode === 'full' || isFullTasReplay) {
+                const isLastLevel = currentLevelIndex === levels.length - 1;
+                if (isLastLevel) {
+                    let fullRunTime;
+                    if (tasEnabled) {
+                         // Add the final level time to accumulated
+                         fullRunTime = (accumulatedTasTime + (tasFrame * MS_PER_UPDATE)) / 1000;
+                         if(currentLevelIndex === 0) { // Special case if only 1 level
+                            fullRunTime = cleanLevelTime;
+                         }
+                    } else {
+                        fullRunTime = (performance.now() - mainTimerInterval - totalPausedTime) / 1000;
+                    }
+
+                    let newFullRecord = false;
+                    
+                    if (!godMode && !tasEnabled) {
+                        if (!bestTimes.fullRun || fullRunTime < bestTimes.fullRun) {
+                            bestTimes.fullRun = fullRunTime;
+                            newFullRecord = true;
+                            saveBestTimes();
+                        }
+                    }
+                    
+                    message += `FULL RUN COMPLETE!<br>Final Time: ${fullRunTime.toFixed(3)}s`;
+                    if (newFullRecord) message += `<br><span class="new-record">New Best Full Run!</span>`;
+                    restartButton.textContent = 'New Game';
+                } else {
+                    message += `LEVEL ${currentLevelIndex + 1} COMPLETE!<br>Time: ${cleanLevelTime.toFixed(3)}s`;
+                    pauseStartTime = performance.now(); 
+                    nextLevelButton.style.display = 'inline-block';
+                }
+            } else { // Training mode
+                message += `LEVEL COMPLETE!<br>Time: ${cleanLevelTime.toFixed(3)}s`;
+            }
+            messageText.innerHTML = message;
+            messageBox.style.borderColor = '#48bb78';
+            
+            if (tasEnabled && !isReplaying) {
+                replayTasButton.style.display = 'inline-block';
+            }
+
+        } else {
+            messageText.innerHTML = `GAME OVER!<br>Try again!`;
+            messageBox.style.borderColor = '#e53e3e';
+            // Stop full run on death
+            if(isFullTasReplay) {
+                isFullTasReplay = false;
+                tasPaused = true;
+            }
+        }
+        messageBox.style.display = 'block';
+    }
+    
+    // TAS Functions
+    function toggleTas() {
+        tasEnabled = !tasEnabled;
+        tasPaused = tasEnabled; // Auto pause when entering TAS
+        if (tasEnabled) {
+            tasLevelSegments = new Array(levels.length).fill(null); // Initialize/Reset segments if starting fresh? 
+            // Actually, keep segments if they exist? User said "saved while game is open".
+            // So we only initialize if undefined.
+            if(tasLevelSegments.length !== levels.length) tasLevelSegments = new Array(levels.length).fill(null);
+            
+            startTrainingLevel(currentLevelIndex); 
+            tasFrame = 0;
+            inputHistory = [];
+            firstInputFrame = null;
+        } else {
+            isReplaying = false;
+            isFullTasReplay = false;
+        }
+        updateTasMenuUI();
+    }
+
+    function saveSegment() {
+        if (!tasEnabled) return;
+        tasLevelSegments[currentLevelIndex] = JSON.parse(JSON.stringify(inputHistory));
+        updateTasMenuUI();
+        saveSegmentBtn.textContent = "Saved!";
+        setTimeout(() => saveSegmentBtn.textContent = "Save Current Segment", 1000);
+    }
+
+    function playFullTas() {
+        if (!tasLevelSegments.every(s => s !== null)) return;
+        
+        tasModal.style.display = 'none';
+        inputAllowed = true;
+        
+        accumulatedTasTime = 0;
+        isFullTasReplay = true;
+        tasEnabled = true;
+        
+        // Start Level 1
+        loadLevel(0, true);
+        inputHistory = tasLevelSegments[0];
+        tasFrame = 0;
+        isReplaying = true;
+        tasPaused = false;
+    }
+
+    function exportFullTas() {
+        if (!tasLevelSegments.every(s => s !== null)) return;
+        
+        const fullRunData = {
+            type: 'full_run',
+            segments: tasLevelSegments.map(seg => seg.map(i => 
+                (i.left ? 1 : 0) | (i.right ? 2 : 0) | (i.jump ? 4 : 0)
+            ))
+        };
+        
+        const str = btoa(JSON.stringify(fullRunData));
+        copyToClipboard(str, exportFullTasBtn);
+    }
+
+    function updateTasMenuUI() {
+        tasSegmentsList.innerHTML = '';
+        if(tasLevelSegments.length === 0) tasLevelSegments = new Array(levels.length).fill(null);
+        
+        tasLevelSegments.forEach((seg, idx) => {
+            const div = document.createElement('div');
+            div.className = 'segment-status' + (seg ? ' done' : '') + (idx === currentLevelIndex ? ' current' : '');
+            div.textContent = `L${idx+1}`;
+            tasSegmentsList.appendChild(div);
+        });
+
+        const allDone = tasLevelSegments.every(s => s !== null);
+        playFullTasBtn.disabled = !allDone;
+        exportFullTasBtn.disabled = !allDone;
+        playFullTasBtn.style.opacity = allDone ? 1 : 0.5;
+        exportFullTasBtn.style.opacity = allDone ? 1 : 0.5;
+    }
+
+    function saveState() {
+        if (!gameRunning || !tasEnabled) return;
+        savedState = {
+            frame: tasFrame,
+            player: { ...player },
+            history: JSON.parse(JSON.stringify(inputHistory.slice(0, tasFrame))),
+            firstInput: firstInputFrame
+        };
+        tasOverlay.style.borderColor = '#4299e1';
+        setTimeout(() => updateTasOverlay(), 200);
+    }
+
+    function loadState() {
+        if (!savedState || !tasEnabled) return;
+        tasFrame = savedState.frame;
+        Object.assign(player, savedState.player);
+        inputHistory = JSON.parse(JSON.stringify(savedState.history));
+        firstInputFrame = savedState.firstInput;
+        gameRunning = true;
+        tasPaused = true;
+        isReplaying = false;
+        messageBox.style.display = 'none';
+        updateGame(); 
+        renderGame();
+    }
+
+    function frameAdvance() {
+        if (!tasEnabled || !gameRunning) return;
+        tasPaused = true;
+        isReplaying = false;
+        updateGame();
+        renderGame();
+    }
+    
+    function playTasReplay() {
+        if (inputHistory.length === 0) return;
+        startTrainingLevel(currentLevelIndex);
+        isReplaying = true;
+        tasEnabled = true;
+        tasPaused = false;
+        tasFrame = 0;
+        firstInputFrame = null;
+    }
+
+    function exportTasRun() {
+        if (inputHistory.length === 0) {
+            alert("No TAS input to export!");
+            return;
+        }
+        const compressed = inputHistory.map(i => 
+            (i.left ? 1 : 0) | (i.right ? 2 : 0) | (i.jump ? 4 : 0)
+        );
+        const data = {
+            level: currentLevelIndex,
+            inputs: compressed,
+            type: 'single'
+        };
+        const str = btoa(JSON.stringify(data));
+        copyToClipboard(str, exportTasBtn);
+    }
+
+    function copyToClipboard(str, btnElement) {
+        const textArea = document.createElement("textarea");
+        textArea.value = str;
+        textArea.style.position = "fixed";
+        textArea.style.top = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            const orig = btnElement.textContent;
+            btnElement.textContent = "Copied!";
+            setTimeout(() => btnElement.textContent = orig, 1500);
+        } catch (err) {
+            console.error('Export error:', err);
+            prompt("Copy your run string:", str);
+        }
+        document.body.removeChild(textArea);
+    }
+
+    function importTasRun() {
+        const str = prompt("Paste TAS string:");
+        if (!str) return;
+        try {
+            const data = JSON.parse(atob(str));
+            
+            if (data.type === 'full_run') {
+                if(data.segments && Array.isArray(data.segments)) {
+                     tasLevelSegments = data.segments.map(seg => seg.map(n => ({
+                        left: !!(n & 1),
+                        right: !!(n & 2),
+                        jump: !!(n & 4)
+                     })));
+                     updateTasMenuUI();
+                     alert("Full run imported! Click 'Play Full TAS' to watch.");
+                }
+            } else if (data.inputs && Array.isArray(data.inputs)) {
+                // Single Level
+                const restored = data.inputs.map(n => ({
+                    left: !!(n & 1),
+                    right: !!(n & 2),
+                    jump: !!(n & 4)
+                }));
+                currentLevelIndex = data.level || 0;
+                inputHistory = restored;
+                
+                // Auto-save this to segments logic? 
+                // Let's ask user or just load it into current play
+                startTrainingLevel(currentLevelIndex);
+                isReplaying = true;
+                tasEnabled = true;
+                tasPaused = false;
+                tasFrame = 0;
+                firstInputFrame = null;
+                
+                // Store in memory too
+                tasLevelSegments[currentLevelIndex] = restored;
+                updateTasMenuUI();
+                
+                tasModal.style.display = 'none';
+                inputAllowed = true;
+            } else {
+                 alert("Invalid data structure");
+            }
+        } catch (e) {
+            alert("Invalid TAS Data");
+            console.error(e);
+        }
+    }
+    
+    function startFullGame() {
+        gameMode = 'full';
+        timerHasStarted = false;
+        totalPausedTime = 0;
+        pauseStartTime = 0;
+        levelSelect.value = "full";
+        loadLevel(0);
+    }
+
+    function startTrainingLevel(levelIndex) {
+        gameMode = 'training';
+        if (levelIndex === 0) {
+            timerHasStarted = false;
+        } else {
+            timerHasStarted = true;
+        }
+        loadLevel(levelIndex, true);
+    }
+    
+    function saveBestTimes() {
+        localStorage.setItem('weatherDuckBestTimes', JSON.stringify(bestTimes));
+        updateBestTimeDisplay();
+    }
+
+    function updateBestTimeDisplay() {
+        const fullRun = bestTimes.fullRun ? `${bestTimes.fullRun.toFixed(3)}s` : '--';
+        bestFullRunElement.textContent = `Best Full Run: ${fullRun}`;
+        
+        const sumOfBest = bestTimes.levels.reduce((a, b) => a + (b || 0), 0);
+        sumOfBestElement.textContent = sumOfBest > 0 ? `Sum of Best: ${sumOfBest.toFixed(3)}s` : 'Sum of Best: --';
+        
+        const levelBest = bestTimes.levels[currentLevelIndex] ? `${bestTimes.levels[currentLevelIndex].toFixed(3)}s` : '--';
+        levelBestElement.textContent = `Level Best: ${levelBest}`;
+    }
+    
+    function exportTimes() {
+        try {
+            const timesString = JSON.stringify(bestTimes);
+            const base64String = btoa(timesString);
+            copyToClipboard(base64String, exportButton);
+        } catch (err) {
+            console.error('Export error:', err);
+        }
+    }
+
+    function importTimes() {
+        const importedString = prompt("Paste your saved stats string here:");
+        if (!importedString) return;
+
+        try {
+            const jsonString = atob(importedString);
+            const importedData = JSON.parse(jsonString);
+
+            if (importedData && typeof importedData.fullRun !== 'undefined' && Array.isArray(importedData.levels)) {
+                bestTimes = importedData;
+                if (bestTimes.levels.length < levels.length) {
+                    bestTimes.levels.push(...new Array(levels.length - bestTimes.levels.length).fill(null));
+                }
+                saveBestTimes();
+            } else {
+                throw new Error('Invalid data structure.');
+            }
+        } catch (err) {
+            console.error('Import error:', err);
+        }
+    }
+    
+    function toggleGodMode() {
+        godMode = !godMode;
+        if (godMode) {
+            godModeIndicator.style.display = 'block';
+            gravitySlider.disabled = false;
+            jumpSlider.disabled = false;
+            speedSlider.disabled = false;
+        } else {
+            godModeIndicator.style.display = 'none';
+            gravitySlider.disabled = true;
+            jumpSlider.disabled = true;
+            speedSlider.disabled = true;
+            GRAVITY = 1.2;
+            JUMP_FORCE = -18;
+            PLAYER_SPEED = 12;
+            gravitySlider.value = 1.2;
+            jumpSlider.value = 18;
+            speedSlider.value = 12;
+            gravityValue.textContent = '1.2';
+            jumpValue.textContent = '18';
+            speedValue.textContent = '12';
+            startFullGame();
+        }
+    }
+
+    function setupUI() {
+        gravitySlider.disabled = true;
+        jumpSlider.disabled = true;
+        speedSlider.disabled = true;
+
+        const savedTimes = localStorage.getItem('weatherDuckBestTimes');
+        if (savedTimes) {
+            bestTimes = JSON.parse(savedTimes);
+            if (bestTimes.levels.length < levels.length) {
+                bestTimes.levels.push(...new Array(levels.length - bestTimes.levels.length).fill(null));
+            }
+        } else {
+            bestTimes = { fullRun: null, levels: new Array(levels.length).fill(null) };
+        }
+
+        const fullGameOption = document.createElement('option');
+        fullGameOption.value = 'full';
+        fullGameOption.textContent = 'Full Game';
+        levelSelect.appendChild(fullGameOption);
+        levels.forEach((_, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = `Train Lv ${index + 1}`;
+            levelSelect.appendChild(option);
+        });
+        levelSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'full') {
+                startFullGame();
+            } else {
+                startTrainingLevel(parseInt(e.target.value));
+            }
+        });
+
+        gravitySlider.addEventListener('input', (e) => { GRAVITY = parseFloat(e.target.value); gravityValue.textContent = GRAVITY.toFixed(1); });
+        jumpSlider.addEventListener('input', (e) => { JUMP_FORCE = -parseFloat(e.target.value); jumpValue.textContent = e.target.value; });
+        speedSlider.addEventListener('input', (e) => { PLAYER_SPEED = parseFloat(e.target.value); speedValue.textContent = e.target.value; });
+
+        restartButton.addEventListener('click', () => {
+            if (restartButton.textContent === 'New Game') {
+                startFullGame();
+            } else if (gameMode === 'training') {
+                startTrainingLevel(currentLevelIndex);
+            } else {
+                loadLevel(currentLevelIndex);
+            }
+        });
+        nextLevelButton.addEventListener('click', () => loadLevel(currentLevelIndex + 1));
+        replayTasButton.addEventListener('click', playTasReplay);
+        
+        importButton.textContent = "Import Stats";
+        exportButton.textContent = "Export Stats";
+        importButton.addEventListener('click', importTimes);
+        exportButton.addEventListener('click', exportTimes);
+        
+        importTasBtn.addEventListener('click', importTasRun);
+        exportTasBtn.addEventListener('click', exportTasRun);
+        saveSegmentBtn.addEventListener('click', saveSegment);
+        playFullTasBtn.addEventListener('click', playFullTas);
+        exportFullTasBtn.addEventListener('click', exportFullTas);
+        
+        closeTutorialBtn.addEventListener('click', () => {
+            tutorialModal.style.display = 'none';
+            inputAllowed = true;
+        });
+        
+        tasMenuBtn.addEventListener('click', () => {
+             tasModal.style.display = 'flex';
+             inputAllowed = false;
+             updateTasMenuUI();
+        });
+        
+        closeTasBtn.addEventListener('click', () => {
+            tasModal.style.display = 'none';
+            inputAllowed = true;
+        });
+
+        bestFullRunElement.contentEditable = true;
+        levelBestElement.contentEditable = true;
+
+        const handleTimeEdit = (element, timeType) => {
+             const text = element.textContent;
+             const timeMatch = text.match(/(\d+\.?\d*)/);
+             if (timeMatch) {
+                 const newTime = parseFloat(timeMatch[1]);
+                 if (!isNaN(newTime) && newTime >= 0) {
+                     if (timeType === 'fullRun') {
+                         bestTimes.fullRun = newTime;
+                     } else if (timeType === 'level') {
+                         bestTimes.levels[currentLevelIndex] = newTime;
+                     }
+                     saveBestTimes();
+                     return;
+                 }
+             }
+             updateBestTimeDisplay();
+        };
+
+        bestFullRunElement.addEventListener('blur', () => handleTimeEdit(bestFullRunElement, 'fullRun'));
+        levelBestElement.addEventListener('blur', () => handleTimeEdit(levelBestElement, 'level'));
+
+        const preventEnterAndBlur = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+            }
+        };
+
+        bestFullRunElement.addEventListener('keydown', preventEnterAndBlur);
+        levelBestElement.addEventListener('keydown', preventEnterAndBlur);
+
+
+        window.addEventListener('keydown', e => { 
+            if (!inputAllowed) return; 
+            const key = e.key.toLowerCase();
+            
+            if (key === '=') { toggleGodMode(); return; }
+
+            if (key === 't') { toggleTas(); return; }
+            if (tasEnabled) {
+                if (key === 'p') { tasPaused = !tasPaused; return; }
+                if (key === '1') { saveState(); return; }
+                if (key === '2') { loadState(); return; }
+                if (key === '0') { playTasReplay(); return; }
+                if (key === '.') { frameAdvance(); return; }
+            }
+
+            if (!timerHasStarted && ['w', 'a', 'd', 'arrowup', 'arrowleft', 'arrowright'].includes(key)) {
+                timerHasStarted = true;
+                const now = performance.now();
+                if (gameMode === 'full') {
+                    mainTimerInterval = now;
+                }
+                levelStartTime = now;
+                lastAttemptStartTime = now;
+            }
+            
+            keys[key] = true; keys[e.key] = true;
+            if (key === 'r' && !e.repeat) {
+                if (tasEnabled) {
+                    if (isFullTasReplay) {
+                        // Restart full tas? or stop it?
+                        isFullTasReplay = false;
+                        tasPaused = true;
+                    }
+                    startTrainingLevel(currentLevelIndex);
+                    tasFrame = 0;
+                    inputHistory = [];
+                    firstInputFrame = null;
+                } else {
+                    rKeyTimeout = setTimeout(() => { startFullGame(); rKeyTimeout = null; }, 600);
+                }
+            }
+        });
+        window.addEventListener('keyup', e => { 
+            const key = e.key.toLowerCase();
+            keys[key] = false; keys[e.key] = false;
+            if (key === 'r' && rKeyTimeout) {
+                clearTimeout(rKeyTimeout);
+                if(gameMode === 'training') {
+                    startTrainingLevel(currentLevelIndex);
+                } else {
+                    loadLevel(currentLevelIndex);
+                }
+                rKeyTimeout = null;
+            }
+        });
+        
+        tutorialModal.style.display = 'flex';
+        inputAllowed = false;
+        
+        tasLevelSegments = new Array(levels.length).fill(null);
+    }
+
+    window.onload = () => {
+        setupUI();
+        startFullGame(); 
+    };
+</script>
+
+</body>
+</html>
