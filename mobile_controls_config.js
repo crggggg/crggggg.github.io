@@ -1,18 +1,20 @@
 (function (global) {
-    const KEYCODES = {
-        a: 65,
-        d: 68,
-        e: 69,
-        r: 82,
-        s: 83,
-        w: 87,
-        x: 88,
-        z: 90,
-        arrowLeft: 37,
-        arrowUp: 38,
-        arrowRight: 39,
-        arrowDown: 40,
-        equal: 187,
+    // Map standard chars to legacy keyCodes AND modern codes
+    // This helps compatibility with both old and new game engines
+    const KEY_MAP = {
+        'w': { code: 'KeyW', keyCode: 87 },
+        'a': { code: 'KeyA', keyCode: 65 },
+        's': { code: 'KeyS', keyCode: 83 },
+        'd': { code: 'KeyD', keyCode: 68 },
+        'z': { code: 'KeyZ', keyCode: 90 },
+        'x': { code: 'KeyX', keyCode: 88 },
+        'e': { code: 'KeyE', keyCode: 69 },
+        'r': { code: 'KeyR', keyCode: 82 },
+        '=': { code: 'Equal', keyCode: 187 },
+        'ArrowUp': { code: 'ArrowUp', keyCode: 38 },
+        'ArrowDown': { code: 'ArrowDown', keyCode: 40 },
+        'ArrowLeft': { code: 'ArrowLeft', keyCode: 37 },
+        'ArrowRight': { code: 'ArrowRight', keyCode: 39 },
     };
 
     function normalizeTargetPath(targetPath) {
@@ -22,8 +24,14 @@
         return withoutQuery.split('/').pop().toLowerCase();
     }
 
-    function makeKey(key, keyCode) {
-        return { key, keyCode };
+    function makeKey(keyName, manualKeyCode) {
+        // Try to find full config in KEY_MAP, fallback to manual inputs
+        const mapData = KEY_MAP[keyName] || {};
+        return { 
+            key: keyName, 
+            code: mapData.code || '', 
+            keyCode: manualKeyCode || mapData.keyCode || 0 
+        };
     }
 
     function makeDpad(id, title, position, size, directions) {
@@ -49,28 +57,30 @@
         };
     }
 
+    // --- Specific D-pad Factories ---
+
     function makeWasdDpad(id, title, position, size) {
         return makeDpad(id, title, position, size, {
-            up: [makeKey('w', KEYCODES.w)],
-            down: [makeKey('s', KEYCODES.s)],
-            left: [makeKey('a', KEYCODES.a)],
-            right: [makeKey('d', KEYCODES.d)],
+            up: [makeKey('w')],
+            down: [makeKey('s')],
+            left: [makeKey('a')],
+            right: [makeKey('d')],
         });
     }
 
     function makeArrowDpad(id, title, position, size) {
         return makeDpad(id, title, position, size, {
-            up: [makeKey('ArrowUp', KEYCODES.arrowUp)],
-            down: [makeKey('ArrowDown', KEYCODES.arrowDown)],
-            left: [makeKey('ArrowLeft', KEYCODES.arrowLeft)],
-            right: [makeKey('ArrowRight', KEYCODES.arrowRight)],
+            up: [makeKey('ArrowUp')],
+            down: [makeKey('ArrowDown')],
+            left: [makeKey('ArrowLeft')],
+            right: [makeKey('ArrowRight')],
         });
     }
 
     function makeHorizontalArrowDpad(id, title, position, size) {
         return makeDpad(id, title, position, size, {
-            left: [makeKey('ArrowLeft', KEYCODES.arrowLeft)],
-            right: [makeKey('ArrowRight', KEYCODES.arrowRight)],
+            left: [makeKey('ArrowLeft')],
+            right: [makeKey('ArrowRight')],
         });
     }
 
@@ -98,17 +108,17 @@
             targetMatch: (file) => file === 'weather-duck-platformer.html',
             controls: [
                 makeHorizontalArrowDpad('dpad-move', 'Move', { bottom: 8, right: 6 }, 18),
-                makeButton('btn-jump', '↑', { bottom: 8, left: 6 }, 12, [makeKey('ArrowUp', KEYCODES.arrowUp)]),
-                makeButton('btn-r', 'r', { top: 6, left: 6 }, 10, [makeKey('r', KEYCODES.r)]),
-                makeButton('btn-equals', '=', { top: 6, right: 6 }, 10, [makeKey('=', KEYCODES.equal)]),
+                makeButton('btn-jump', '↑', { bottom: 8, left: 6 }, 12, [makeKey('ArrowUp')]),
+                makeButton('btn-r', 'r', { top: 6, left: 6 }, 10, [makeKey('r')]),
+                makeButton('btn-equals', '=', { top: 6, right: 6 }, 10, [makeKey('=')]),
             ],
         },
         waterrune: {
             targetMatch: (file) => file === 'waterrune.html',
             controls: [
                 makeArrowDpad('dpad-move', 'Move', { bottom: 8, right: 6 }, 18),
-                makeButton('btn-z', 'Z', { bottom: 8, left: 6 }, 12, [makeKey('z', KEYCODES.z), makeKey('e', KEYCODES.e)]),
-                makeButton('btn-x', 'X', { top: 45, left: 6 }, 12, [makeKey('x', KEYCODES.x)]),
+                makeButton('btn-z', 'Z', { bottom: 8, left: 6 }, 12, [makeKey('z'), makeKey('e')]),
+                makeButton('btn-x', 'X', { top: 45, left: 6 }, 12, [makeKey('x')]),
             ],
         },
     };
@@ -119,13 +129,11 @@
 
         for (const preset of presets) {
             if (preset.targetMatch(file)) {
-                return {
-                    targetPath,
-                    controls: preset.controls,
-                };
+                return { targetPath, controls: preset.controls };
             }
         }
 
+        // Fallback Logic
         if (file.includes('weather-duck') || file.startsWith('rpg-')) {
             const isArrowChapter = file.startsWith('rpg-2-') || file.startsWith('rpg-3-');
             return {
@@ -138,10 +146,7 @@
             };
         }
 
-        return {
-            targetPath,
-            controls: [],
-        };
+        return { targetPath, controls: [] };
     }
 
     global.MOBILE_CONTROLS_PRESETS = PRESETS;
