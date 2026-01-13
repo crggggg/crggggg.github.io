@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mobile Controls</title>
 
     <script src="mobile_controls_config.js"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111; }
+        body { margin: 0; overflow: hidden; background-color: #111; touch-action: none; }
         #wrapper {
             position: relative;
             width: 100vw;
@@ -27,44 +27,71 @@
             z-index: 1000;
             pointer-events: none;
         }
+        
+        /* Shared Control Styles */
         .control {
             position: absolute;
-            background: rgba(0, 0, 0, 0.7);
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Critical for preventing scroll */
+            pointer-events: auto;
+        }
+
+        /* Button Styling */
+        .game-btn {
+            background: rgba(255, 255, 255, 0.15);
             color: white;
-            border-radius: 9999px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
-            user-select: none;
-            touch-action: manipulation;
-            pointer-events: auto;
+            font-size: 1.5rem;
+            font-weight: bold;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255,255,255,0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(2px);
+            transition: background 0.1s, transform 0.1s;
         }
-        .control.active {
-            background: rgba(0, 150, 255, 0.85);
-            box-shadow: 0 0 15px rgba(0, 150, 255, 0.85);
+        .game-btn:active, .game-btn.active {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.95);
         }
-        .dpad {
+
+        /* Joystick Styling */
+        .joystick-base {
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .joystick-stick {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
             position: absolute;
-            pointer-events: auto;
+            pointer-events: none; /* Let touches pass through to base */
+            transition: transform 0.1s; /* smooth return to center */
         }
-        .dpad-segment {
-            position: absolute;
-            border-radius: 9999px;
-            font-weight: 700;
+        .joystick-base.active .joystick-stick {
+            transition: none; /* instant movement while dragging */
+            background: rgba(100, 200, 255, 0.9);
         }
+
         #error {
             position: absolute;
             inset: 0;
             display: none;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            color: #ff5555;
+            background: rgba(0,0,0,0.8);
             font-family: monospace;
             padding: 24px;
             text-align: center;
+            z-index: 2000;
         }
     </style>
 </head>
@@ -80,6 +107,8 @@
         const overlay = document.getElementById('overlay');
         const errorEl = document.getElementById('error');
 
+        // --- Helpers ---
+
         function getQueryParam(name) {
             const params = new URLSearchParams(window.location.search);
             return params.get(name);
@@ -88,65 +117,7 @@
         function showError(message) {
             errorEl.style.display = 'flex';
             errorEl.textContent = message;
-        }
-
-        function getDispatchTargets() {
-            try {
-                const win = iframe.contentWindow;
-                const doc = win && win.document;
-                return [win, doc].filter(Boolean);
-            } catch {
-                return [];
-            }
-        }
-
-        function dispatchKeyboardEvent(type, keyMapping) {
-            const targets = getDispatchTargets();
-            if (targets.length === 0) return;
-
-            for (const t of targets) {
-                try {
-                    const evt = new KeyboardEvent(type, {
-                        key: keyMapping.key,
-                        keyCode: keyMapping.keyCode,
-                        which: keyMapping.keyCode,
-                        bubbles: true,
-                        cancelable: true,
-                    });
-                    t.dispatchEvent(evt);
-                } catch {
-                }
-            }
-        }
-
-        function pressKeys(keys) {
-            for (const k of keys) dispatchKeyboardEvent('keydown', k);
-        }
-
-        function releaseKeys(keys) {
-            for (const k of keys) dispatchKeyboardEvent('keyup', k);
-        }
-
-        function attachPressHandlers(el, keys) {
-            const normalizedKeys = Array.isArray(keys) ? keys : [];
-            const down = (e) => {
-                e.preventDefault();
-                el.classList.add('active');
-                pressKeys(normalizedKeys);
-            };
-            const up = (e) => {
-                e.preventDefault();
-                el.classList.remove('active');
-                releaseKeys(normalizedKeys);
-            };
-
-            el.addEventListener('touchstart', down, { passive: false });
-            el.addEventListener('touchend', up, { passive: false });
-            el.addEventListener('touchcancel', up, { passive: false });
-
-            el.addEventListener('mousedown', down);
-            el.addEventListener('mouseup', up);
-            el.addEventListener('mouseleave', up);
+            console.error(message);
         }
 
         function applyPosition(el, position) {
@@ -155,88 +126,259 @@
             });
         }
 
-        function clearControls() {
-            while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+        // --- Input Dispatcher ---
+
+        function getDispatchTargets() {
+            try {
+                // We dispatch to both window and document to cover different engine implementations
+                const win = iframe.contentWindow;
+                const doc = win && win.document;
+                return [win, doc].filter(Boolean);
+            } catch (e) {
+                console.warn("Cannot access iframe content. Cross-origin restriction?", e);
+                return [];
+            }
         }
 
-        function directionLabel(dir) {
-            if (dir === 'up') return '↑';
-            if (dir === 'down') return '↓';
-            if (dir === 'left') return '←';
-            if (dir === 'right') return '→';
-            return dir;
+        function createKeyEvent(type, keyConfig) {
+            return new KeyboardEvent(type, {
+                key: keyConfig.key,
+                code: keyConfig.code || '', // config doesn't have code, but good to have
+                keyCode: keyConfig.keyCode,
+                which: keyConfig.keyCode,
+                bubbles: true,
+                cancelable: true,
+                view: iframe.contentWindow
+            });
         }
+
+        function dispatchKey(type, keyConfig) {
+            const targets = getDispatchTargets();
+            if (!targets.length) return;
+
+            // Ensure focus is on the game
+            if (type === 'keydown' && iframe.contentWindow) {
+                iframe.contentWindow.focus();
+            }
+
+            const evt = createKeyEvent(type, keyConfig);
+            targets.forEach(t => t.dispatchEvent(evt));
+        }
+
+        // --- Button Logic ---
 
         function renderButton(control) {
             const btn = document.createElement('div');
-            btn.className = 'control';
+            btn.className = 'control game-btn';
             btn.id = control.id;
             btn.textContent = control.label || control.title || '';
-            if (control.title) btn.setAttribute('aria-label', control.title);
-
+            
             applyPosition(btn, control.position);
-
             const size = `${control.size}vmin`;
             btn.style.width = size;
             btn.style.height = size;
+            // Adjust font size based on button size
+            btn.style.fontSize = `calc(${size} * 0.4)`;
 
-            attachPressHandlers(btn, control.keys);
+            const keys = Array.isArray(control.keys) ? control.keys : [];
+
+            const press = (e) => {
+                e.preventDefault(); // Stop mouse emulation
+                btn.classList.add('active');
+                keys.forEach(k => dispatchKey('keydown', k));
+            };
+            
+            const release = (e) => {
+                e.preventDefault();
+                btn.classList.remove('active');
+                keys.forEach(k => dispatchKey('keyup', k));
+            };
+
+            btn.addEventListener('touchstart', press, { passive: false });
+            btn.addEventListener('touchend', release, { passive: false });
+            btn.addEventListener('mousedown', press);
+            btn.addEventListener('mouseup', release);
+            btn.addEventListener('mouseleave', release);
+
             overlay.appendChild(btn);
         }
 
-        function renderDpad(control) {
+        // --- Joystick Logic (The 8-way fix) ---
+
+        function renderJoystick(control) {
             const container = document.createElement('div');
-            container.className = 'dpad';
+            container.className = 'control joystick-base';
             container.id = control.id;
-            if (control.title) container.setAttribute('aria-label', control.title);
 
             applyPosition(container, control.position);
 
-            const size = Number(control.size) || 18;
-            const containerSize = size * 1.6;
-            const segmentSize = size / 2;
+            // Sizing
+            const baseSizeVal = Number(control.size) || 18; // e.g. 18
+            const baseSize = `${baseSizeVal}vmin`;
+            const stickSizeVal = baseSizeVal * 0.4; // Stick is 40% of base
+            const stickSize = `${stickSizeVal}vmin`;
 
-            container.style.width = `${containerSize}vmin`;
-            container.style.height = `${containerSize}vmin`;
+            container.style.width = baseSize;
+            container.style.height = baseSize;
 
-            const dirs = control.directions || {};
-            const dirKeys = Object.keys(dirs);
+            // The Stick
+            const stick = document.createElement('div');
+            stick.className = 'joystick-stick';
+            stick.style.width = stickSize;
+            stick.style.height = stickSize;
+            
+            // Center the stick initially
+            // CSS absolute centering logic inside flex container is handled, 
+            // but we need transform for movement.
+            stick.style.transform = `translate(0px, 0px)`;
 
-            dirKeys.forEach((dir) => {
-                const seg = document.createElement('div');
-                seg.className = 'control dpad-segment';
-                seg.id = `${control.id}-${dir}`;
-                seg.textContent = directionLabel(dir);
+            container.appendChild(stick);
+            overlay.appendChild(container);
 
-                seg.style.width = `${segmentSize}vmin`;
-                seg.style.height = `${segmentSize}vmin`;
+            // State for dragging
+            let isDragging = false;
+            let currentKeys = new Set(); // Stores JSON strings of active keys
+            const maxRadius = (window.innerWidth * (baseSizeVal / 100)) / 2; 
 
-                const halfContainer = containerSize / 2;
-                const halfSeg = segmentSize / 2;
+            // Input Mapping (Directions -> Keys)
+            const directions = control.directions || {};
+            
+            // Helper: Diff keys to fire events only on change
+            const updateActiveKeys = (newActiveKeys) => {
+                // newActiveKeys is an array of key objects
+                const newKeySet = new Set(newActiveKeys.map(k => JSON.stringify(k)));
 
-                if (dir === 'up') {
-                    seg.style.top = '0';
-                    seg.style.left = `${halfContainer - halfSeg}vmin`;
-                } else if (dir === 'down') {
-                    seg.style.bottom = '0';
-                    seg.style.left = `${halfContainer - halfSeg}vmin`;
-                } else if (dir === 'left') {
-                    seg.style.left = '0';
-                    seg.style.top = `${halfContainer - halfSeg}vmin`;
-                } else if (dir === 'right') {
-                    seg.style.right = '0';
-                    seg.style.top = `${halfContainer - halfSeg}vmin`;
-                } else {
-                    seg.style.left = `${halfContainer - halfSeg}vmin`;
-                    seg.style.top = `${halfContainer - halfSeg}vmin`;
+                // Release keys that are no longer pressed
+                currentKeys.forEach(kJson => {
+                    if (!newKeySet.has(kJson)) {
+                        dispatchKey('keyup', JSON.parse(kJson));
+                    }
+                });
+
+                // Press keys that are newly pressed
+                newKeySet.forEach(kJson => {
+                    if (!currentKeys.has(kJson)) {
+                        dispatchKey('keydown', JSON.parse(kJson));
+                    }
+                });
+
+                currentKeys = newKeySet;
+            };
+
+            const handleMove = (clientX, clientY) => {
+                const rect = container.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                // Calculate vector
+                let dx = clientX - centerX;
+                let dy = clientY - centerY;
+
+                // Distance
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                const limit = rect.width / 2;
+
+                // Clamp stick visual
+                let visualDx = dx;
+                let visualDy = dy;
+                
+                if (distance > limit) {
+                    const ratio = limit / distance;
+                    visualDx *= ratio;
+                    visualDy *= ratio;
                 }
 
-                attachPressHandlers(seg, dirs[dir]);
-                container.appendChild(seg);
-            });
+                stick.style.transform = `translate(${visualDx}px, ${visualDy}px)`;
 
-            overlay.appendChild(container);
+                // 8-Way Logic
+                // Deadzone check (10% of radius)
+                if (distance < limit * 0.1) {
+                    updateActiveKeys([]);
+                    return;
+                }
+
+                // Calculate Angle (radians)
+                // Math.atan2(y, x) returns -PI to +PI
+                let angle = Math.atan2(dy, dx); 
+                // Convert to degrees for easier mental mapping: -180 to 180
+                let deg = angle * (180 / Math.PI);
+
+                // Map degrees to directions (8 slices)
+                // Right is 0. Down is 90. Left is 180/-180. Up is -90.
+                
+                const activeDirKeys = [];
+
+                // Helper to add keys
+                const addDir = (dirName) => {
+                    if (directions[dirName]) activeDirKeys.push(...directions[dirName]);
+                };
+
+                // Define 8 sectors (22.5 deg offset to center the slices)
+                if (deg > -22.5 && deg <= 22.5) {
+                    addDir('right');
+                } else if (deg > 22.5 && deg <= 67.5) {
+                    addDir('right'); addDir('down');
+                } else if (deg > 67.5 && deg <= 112.5) {
+                    addDir('down');
+                } else if (deg > 112.5 && deg <= 157.5) {
+                    addDir('down'); addDir('left');
+                } else if (deg > 157.5 || deg <= -157.5) {
+                    addDir('left');
+                } else if (deg > -157.5 && deg <= -112.5) {
+                    addDir('left'); addDir('up');
+                } else if (deg > -112.5 && deg <= -67.5) {
+                    addDir('up');
+                } else if (deg > -67.5 && deg <= -22.5) {
+                    addDir('up'); addDir('right');
+                }
+
+                updateActiveKeys(activeDirKeys);
+            };
+
+            const onTouchStart = (e) => {
+                e.preventDefault();
+                isDragging = true;
+                container.classList.add('active');
+                const touch = e.changedTouches[0];
+                handleMove(touch.clientX, touch.clientY);
+            };
+
+            const onTouchMove = (e) => {
+                e.preventDefault();
+                if (!isDragging) return;
+                const touch = e.changedTouches[0];
+                handleMove(touch.clientX, touch.clientY);
+            };
+
+            const onTouchEnd = (e) => {
+                e.preventDefault();
+                isDragging = false;
+                container.classList.remove('active');
+                stick.style.transform = `translate(0px, 0px)`;
+                updateActiveKeys([]); // Release all keys
+            };
+
+            // Touch events
+            container.addEventListener('touchstart', onTouchStart, { passive: false });
+            container.addEventListener('touchmove', onTouchMove, { passive: false });
+            container.addEventListener('touchend', onTouchEnd, { passive: false });
+            container.addEventListener('touchcancel', onTouchEnd, { passive: false });
+
+            // Mouse fallbacks for testing on desktop
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                container.classList.add('active');
+                handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (isDragging) handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', (e) => {
+                if(isDragging) onTouchEnd(e);
+            });
         }
+
+        // --- Bootstrap ---
 
         function generateControlsForTarget(targetPath) {
             if (typeof getMobileControlsForTarget !== 'function') {
@@ -247,36 +389,40 @@
             const config = getMobileControlsForTarget(targetPath);
             const controls = (config && Array.isArray(config.controls)) ? config.controls : [];
 
-            clearControls();
+            // clear
+            while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
 
             controls.forEach((control) => {
                 if (!control || !control.type) return;
-                if (control.type === 'button') return renderButton(control);
-                if (control.type === 'dpad') return renderDpad(control);
+                if (control.type === 'button') renderButton(control);
+                // We treat all dpads as joysticks now
+                if (control.type === 'dpad') renderJoystick(control);
             });
         }
 
         function boot() {
             const target = getQueryParam('target');
             if (!target) {
-                showError('Missing ?target=... in URL. Example: mobile.html?target=frontend/weather-duck-rpg.html');
+                showError('Missing ?target=... in URL');
                 return;
             }
 
+            // Attempt to load
             iframe.src = target;
 
             iframe.addEventListener('load', () => {
-                generateControlsForTarget(target);
-                try {
-                    iframe.contentWindow.focus();
-                } catch {
-                }
+                // Delay slightly to ensure game JS is ready
+                setTimeout(() => {
+                    generateControlsForTarget(target);
+                    try { iframe.contentWindow.focus(); } catch(e){}
+                }, 500);
             });
 
+            // Handle rotations
             let resizeTimer = null;
             window.addEventListener('resize', () => {
                 window.clearTimeout(resizeTimer);
-                resizeTimer = window.setTimeout(() => generateControlsForTarget(target), 100);
+                resizeTimer = window.setTimeout(() => generateControlsForTarget(target), 200);
             });
         }
 
