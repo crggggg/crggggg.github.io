@@ -1,5 +1,5 @@
 (function (global) {
-    // Map standard chars to legacy keyCodes AND modern codes
+    // Map standard chars to legacy keyCodes AND modern codes 
     // This helps compatibility with both old and new game engines
     const KEY_MAP = {
         'w': { code: 'KeyW', keyCode: 87 },
