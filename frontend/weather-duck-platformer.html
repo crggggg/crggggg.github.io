@@ -1240,19 +1240,23 @@
                     jump: !!(n & 4)
                 }));
                 currentLevelIndex = data.level || 0;
+                
+                // FIX: Start level FIRST to ensure clean slate
+                startTrainingLevel(currentLevelIndex);
+                
+                // FIX: THEN inject the imported history
                 inputHistory = restored;
                 
-                // Auto-save this to segments logic? 
-                // Let's ask user or just load it into current play
-                startTrainingLevel(currentLevelIndex);
+                // Auto-save this to segments logic
+                tasLevelSegments[currentLevelIndex] = restored;
+                
+                // Set flags
                 isReplaying = true;
                 tasEnabled = true;
                 tasPaused = false;
                 tasFrame = 0;
                 firstInputFrame = null;
                 
-                // Store in memory too
-                tasLevelSegments[currentLevelIndex] = restored;
                 updateTasMenuUI();
                 
                 tasModal.style.display = 'none';
