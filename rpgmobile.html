@@ -1,169 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Weather Duck RPG - Touch Controls</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Weather Duck RPG – Dual Joystick</title>
+
 <style>
-* {margin:0;padding:0;box-sizing:border-box;}
-html, body {width:100%;height:100%; margin: 0;overflow:hidden;touch-action:none;background:#1a1a2e;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;}
+/* ===== RESET ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: black;
+    touch-action: none;
+    font-family: system-ui, sans-serif;
+}
+
+/* ===== GAME IFRAME (ABSOLUTE FULLSCREEN) ===== */
 #game-frame {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100vw;
     height: 100vh;
     border: none;
     z-index: 0;
 }
 
+/* ===== UI LAYER ===== */
+#ui {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+}
 
-/* Joysticks */
-.joystick-container {position:fixed;bottom:40px;width:140px;height:140px;background:radial-gradient(circle at 30% 30%, rgba(80,80,100,0.6) 0%, rgba(40,40,60,0.8) 100%);border-radius:50%;border:4px solid rgba(255,255,255,0.3);touch-action:none;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.4), inset 0 2px 10px rgba(255,255,255,0.1), inset 0 -5px 20px rgba(0,0,0,0.3);user-select:none;-webkit-user-select:none;}
-#joystick-container-left {left:40px;}
-#joystick-container-right {right:40px;}
-.joystick-container::before {content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:80%;border-radius:50%;border:2px dashed rgba(255,255,255,0.15);}
-.joystick-knob {position:absolute;width:60px;height:60px;background:radial-gradient(circle at 30% 30%, #fff 0%, #e0e0e0 40%, #b0b0b0 100%);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);cursor:grab;touch-action:none;box-shadow:0 6px 20px rgba(0,0,0,0.4), inset 0 2px 5px rgba(255,255,255,0.8), inset 0 -2px 5px rgba(0,0,0,0.2);transition:transform 0.1s ease-out,box-shadow 0.1s;user-select:none;-webkit-user-select:none;}
-.joystick-knob.active {cursor:grabbing;box-shadow:0 3px 15px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.8), inset 0 -2px 5px rgba(0,0,0,0.2);}
-.joystick-knob.active::after {content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;background:radial-gradient(circle,#ffcc00 0%,#ff9900 100%);border-radius:50%;box-shadow:0 0 15px #ffcc00;}
+/* ===== JOYSTICKS ===== */
+.joystick {
+    position: fixed;
+    bottom: 40px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #555, #222);
+    border: 4px solid rgba(255,255,255,0.25);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    pointer-events: auto;
+}
 
-/* Direction displays */
-.direction-display {position:fixed;bottom:195px;color:#fff;font-size:13px;font-weight:600;text-shadow:1px 1px 3px rgba(0,0,0,0.8);z-index:1000;background:rgba(0,0,0,0.6);padding:8px 14px;border-radius:20px;backdrop-filter:blur(5px);min-width:140px;text-align:center;}
-#direction-display-left {left:40px;}
-#direction-display-right {right:40px;}
+#joy-left { left: 40px; }
+#joy-right { right: 40px; }
 
-/* Arrow indicator */
-#arrow-indicator {position:fixed;bottom:235px;left:40px;width:140px;height:100px;z-index:1000;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3px;background:rgba(0,0,0,0.4);padding:8px;border-radius:12px;backdrop-filter:blur(5px);}
-.arrow-cell {display:flex;align-items:center;justify-content:center;font-size:18px;color:rgba(255,255,255,0.25);text-shadow:1px 1px 2px rgba(0,0,0,0.5);border-radius:6px;transition:all 0.1s ease;}
-.arrow-cell.active {color:#ffcc00;text-shadow:0 0 15px #ffcc00,0 0 30px #ff9900;background:rgba(255,204,0,0.15);transform:scale(1.1);}
-.arrow-cell.center {color:rgba(255,255,255,0.1);font-size:10px;}
+.knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff, #aaa);
+    transform: translate(-50%, -50%);
+    transition: box-shadow 0.1s;
+}
 
-/* Instructions */
-#instructions {position:fixed;top:15px;left:50%;transform:translateX(-50%);color:white;font-size:13px;background:rgba(0,0,0,0.7);padding:10px 25px;border-radius:25px;z-index:1000;backdrop-filter:blur(5px);box-shadow:0 4px 15px rgba(0,0,0,0.3);transition:opacity 0.5s;}
-#instructions.hidden {opacity:0;pointer-events:none;}
+.knob.active {
+    box-shadow: 0 0 15px gold;
+}
 
-/* Keys display */
-#keys-display {position:fixed;bottom:350px;left:40px;color:#aaa;font-size:11px;z-index:1000;background:rgba(0,0,0,0.5);padding:6px 12px;border-radius:8px;backdrop-filter:blur(5px);font-family:monospace;}
-.key-badge {display:inline-block;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:4px;margin:0 2px;border:1px solid rgba(255,255,255,0.2);}
-.key-badge.active {background:rgba(255,204,0,0.3);border-color:#ffcc00;color:#ffcc00;}
+/* ===== ACTION BUTTONS ===== */
+#buttons {
+    position: fixed;
+    bottom: 80px;
+    right: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    pointer-events: auto;
+}
 
-/* Action buttons */
-#action-buttons {position:fixed;bottom:80px;right:40px;display:flex;flex-direction:column;gap:15px;z-index:1000;}
-.action-btn {width:70px;height:70px;border-radius:50%;border:3px solid rgba(255,255,255,0.3);background:radial-gradient(circle at 30% 30%, rgba(100,100,120,0.7)0%,rgba(60,60,80,0.9)100%);color:white;font-size:12px;font-weight:bold;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 6px 20px rgba(0,0,0,0.4),inset 0 2px 5px rgba(255,255,255,0.1);transition:all 0.1s;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.action-btn:active {transform:scale(0.95);box-shadow:0 3px 10px rgba(0,0,0,0.5),inset 0 2px 5px rgba(255,255,255,0.1);}
-.action-btn .icon {font-size:24px;margin-bottom:2px;}
-.action-btn.primary {background:radial-gradient(circle at 30% 30%, rgba(255,180,0,0.8)0%,rgba(200,120,0,0.9)100%);}
-.action-btn.secondary {background:radial-gradient(circle at 30% 30%, rgba(80,180,255,0.7)0%,rgba(40,120,200,0.9)100%);}
+.btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: none;
+    font-size: 20px;
+    background: radial-gradient(circle, #ffcc00, #cc8800);
+}
 </style>
 </head>
+
 <body>
-<iframe id="game-frame" src="frontend/rpg-2-0.html" allow="autoplay"></iframe>
 
-<div id="instructions">🎮 Drag joystick to move • Tap buttons for actions</div>
+<!-- GAME -->
+<iframe id="game-frame" src="frontend/rpg-2-0.html"></iframe>
 
-<!-- Arrow indicator -->
-<div id="arrow-indicator">
-<div class="arrow-cell" data-dir="leftup">↖</div>
-<div class="arrow-cell" data-dir="up">↑</div>
-<div class="arrow-cell" data-dir="rightup">↗</div>
-<div class="arrow-cell" data-dir="left">←</div>
-<div class="arrow-cell center">●</div>
-<div class="arrow-cell" data-dir="right">→</div>
-<div class="arrow-cell" data-dir="leftdown">↙</div>
-<div class="arrow-cell" data-dir="down">↓</div>
-<div class="arrow-cell" data-dir="rightdown">↘</div>
-</div>
+<!-- UI -->
+<div id="ui">
+    <div id="joy-left" class="joystick">
+        <div class="knob" id="knob-left"></div>
+    </div>
 
-<!-- Left joystick -->
-<div id="joystick-container-left" class="joystick-container">
-<div id="joystick-knob-left" class="joystick-knob"></div>
-</div>
-<div id="direction-display-left" class="direction-display">⏸ IDLE</div>
+    <div id="joy-right" class="joystick">
+        <div class="knob" id="knob-right"></div>
+    </div>
 
-<!-- Right joystick -->
-<div id="joystick-container-right" class="joystick-container">
-<div id="joystick-knob-right" class="joystick-knob"></div>
-</div>
-<div id="direction-display-right" class="direction-display">⏸ IDLE</div>
-
-<div id="keys-display">
-Keys: 
-<span class="key-badge" id="key-up">↑</span>
-<span class="key-badge" id="key-down">↓</span>
-<span class="key-badge" id="key-left">←</span>
-<span class="key-badge" id="key-right">→</span>
-</div>
-
-<!-- Action buttons -->
-<div id="action-buttons">
-<button class="action-btn primary" id="btn-action" data-key=" ">
-<span class="icon">⚡</span><span>Action</span>
-</button>
-<button class="action-btn secondary" id="btn-menu" data-key="Escape">
-<span class="icon">☰</span><span>Menu</span>
-</button>
+    <div id="buttons">
+        <button class="btn" data-key=" ">⚡</button>
+        <button class="btn" data-key="Escape">☰</button>
+    </div>
 </div>
 
 <script>
-// ===== DOM & IFRAME =====
-const gameFrame=document.getElementById('game-frame');
-const instructions=document.getElementById('instructions');
-const arrowCells=document.querySelectorAll('.arrow-cell[data-dir]');
-const keyBadges={
-ArrowUp:document.getElementById('key-up'),
-ArrowDown:document.getElementById('key-down'),
-ArrowLeft:document.getElementById('key-left'),
-ArrowRight:document.getElementById('key-right')
-};
+/* ===== KEY UTILS ===== */
+function sendKey(key, type) {
+    const evt = new KeyboardEvent(type, {
+        key,
+        bubbles: true
+    });
+    document.dispatchEvent(evt);
+}
 
-// ===== JOYSTICKS =====
-const joystickData=[
-{container:'joystick-container-left',knob:'joystick-knob-left',display:'direction-display-left',keysMapping:{right:['d'],rightdown:['d','s'],down:['s'],leftdown:['a','s'],left:['a'],leftup:['a','w'],up:['w'],rightup:['d','w']}},
-{container:'joystick-container-right',knob:'joystick-knob-right',display:'direction-display-right',keysMapping:{right:['ArrowRight'],rightdown:['ArrowRight','ArrowDown'],down:['ArrowDown'],leftdown:['ArrowLeft','ArrowDown'],left:['ArrowLeft'],leftup:['ArrowLeft','ArrowUp'],up:['ArrowUp'],rightup:['ArrowRight','ArrowUp']}}
-];
-const directionNames={right:'➡️ RIGHT',rightdown:'↘️ RIGHT-DOWN',down:'⬇️ DOWN',leftdown:'↙️ LEFT-DOWN',left:'⬅️ LEFT',leftup:'↖️ LEFT-UP',up:'⬆️ UP',rightup:'↗️ RIGHT-UP'};
+/* ===== JOYSTICK LOGIC ===== */
+function setupJoystick(container, knob, keyMap) {
+    let active = false;
+    let center = { x: 0, y: 0 };
+    let max = 50;
+    let pressed = new Set();
 
-joystickData.forEach(joy=>{
-joy.containerEl=document.getElementById(joy.container);
-joy.knobEl=document.getElementById(joy.knob);
-joy.displayEl=document.getElementById(joy.display);
-joy.isDragging=false;joy.centerX=0;joy.centerY=0;joy.maxDistance=0;joy.currentDirection=null;joy.pressedKeys=new Set();
+    function updateCenter() {
+        const r = container.getBoundingClientRect();
+        center.x = r.left + r.width / 2;
+        center.y = r.top + r.height / 2;
+    }
+
+    function handle(x, y) {
+        const dx = x - center.x;
+        const dy = y - center.y;
+        const dist = Math.hypot(dx, dy);
+
+        let nx = dx, ny = dy;
+        if (dist > max) {
+            nx *= max / dist;
+            ny *= max / dist;
+        }
+
+        knob.style.transform = `translate(${nx - 30}px, ${ny - 30}px)`;
+
+        let dir = null;
+        if (dist > 15) {
+            const a = Math.atan2(dy, dx);
+            dir =
+                a > -0.75 && a < 0.75 ? "right" :
+                a >= 0.75 && a < 2.25 ? "down" :
+                a <= -0.75 && a > -2.25 ? "up" :
+                "left";
+        }
+
+        const next = dir ? keyMap[dir] : [];
+        pressed.forEach(k => !next.includes(k) && sendKey(k, "keyup"));
+        next.forEach(k => !pressed.has(k) && sendKey(k, "keydown"));
+        pressed = new Set(next);
+    }
+
+    function reset() {
+        knob.style.transform = "translate(-50%, -50%)";
+        pressed.forEach(k => sendKey(k, "keyup"));
+        pressed.clear();
+    }
+
+    container.addEventListener("touchstart", e => {
+        updateCenter();
+        active = true;
+        knob.classList.add("active");
+        handle(e.touches[0].clientX, e.touches[0].clientY);
+    });
+
+    window.addEventListener("touchmove", e => {
+        if (active) handle(e.touches[0].clientX, e.touches[0].clientY);
+    });
+
+    window.addEventListener("touchend", () => {
+        if (active) {
+            active = false;
+            knob.classList.remove("active");
+            reset();
+        }
+    });
+}
+
+/* ===== INIT ===== */
+setupJoystick(
+    document.getElementById("joy-left"),
+    document.getElementById("knob-left"),
+    { up:["w"], down:["s"], left:["a"], right:["d"] }
+);
+
+setupJoystick(
+    document.getElementById("joy-right"),
+    document.getElementById("knob-right"),
+    { up:["ArrowUp"], down:["ArrowDown"], left:["ArrowLeft"], right:["ArrowRight"] }
+);
+
+/* ===== BUTTONS ===== */
+document.querySelectorAll(".btn").forEach(btn => {
+    const key = btn.dataset.key;
+    btn.addEventListener("touchstart", e => {
+        e.preventDefault();
+        sendKey(key, "keydown");
+    });
+    btn.addEventListener("touchend", e => {
+        e.preventDefault();
+        sendKey(key, "keyup");
+    });
 });
-
-// ===== UTILITY =====
-function initJoystick(joy){const rect=joy.containerEl.getBoundingClientRect();joy.centerX=rect.left+rect.width/2;joy.centerY=rect.top+rect.height/2;joy.maxDistance=(rect.width/2)-30;}
-function getDirection(angle){if(angle<0)angle+=360;if(angle>=337.5||angle<22.5)return'right';if(angle>=22.5&&angle<67.5)return'rightdown';if(angle>=67.5&&angle<112.5)return'down';if(angle>=112.5&&angle<157.5)return'leftdown';if(angle>=157.5&&angle<202.5)return'left';if(angle>=202.5&&angle<247.5)return'leftup';if(angle>=247.5&&angle<292.5)return'up';if(angle>=292.5&&angle<337.5)return'rightup';return'right';}
-function sendKeyEvent(key,eventType){const eventInit={key:key,code:key===' '?'Space':key,keyCode:key.toUpperCase().charCodeAt(0),which:key.toUpperCase().charCodeAt(0),bubbles:true,cancelable:true,view:window};document.dispatchEvent(new KeyboardEvent(eventType,eventInit));if(keyBadges[key]){keyBadges[key].classList.toggle('active',eventType==='keydown');}}
-function updateKeys(joy,newDirection){const newKeys=newDirection?new Set(joy.keysMapping[newDirection]):new Set();for(const key of joy.pressedKeys)if(!newKeys.has(key))sendKeyEvent(key,'keyup');for(const key of newKeys)if(!joy.pressedKeys.has(key))sendKeyEvent(key,'keydown');joy.pressedKeys.clear();for(const key of newKeys)joy.pressedKeys.add(key);}
-function handleMove(joy,clientX,clientY){initJoystick(joy);const dx=clientX-joy.centerX,dy=clientY-joy.centerY,distance=Math.sqrt(dx*dx+dy*dy);let moveX=dx,moveY=dy;if(distance>joy.maxDistance){const scale=joy.maxDistance/distance;moveX=dx*scale;moveY=dy*scale;}joy.knobEl.style.left=`calc(50% + ${moveX}px)`;joy.knobEl.style.top=`calc(50% + ${moveY}px)`;let direction=null;if(distance>15){const angle=Math.atan2(dy,dx)*(180/Math.PI);direction=getDirection(angle);if(direction!==joy.currentDirection){joy.currentDirection=direction;joy.displayEl.textContent=directionNames[direction]||direction;updateKeys(joy,direction);}}else{if(joy.currentDirection!==null){joy.currentDirection=null;joy.displayEl.textContent='⏸ IDLE';updateKeys(joy,null);}}}
-function resetJoystick(joy){joy.knobEl.style.left='50%';joy.knobEl.style.top='50%';joy.knobEl.classList.remove('active');joy.currentDirection=null;joy.displayEl.textContent='⏸ IDLE';updateKeys(joy,null);}
-
-// ===== EVENTS =====
-joystickData.forEach(joy=>{
-joy.containerEl.addEventListener('mousedown',e=>{joy.isDragging=true;joy.knobEl.classList.add('active');handleMove(joy,e.clientX,e.clientY);instructions.classList.add('hidden');e.preventDefault();});
-document.addEventListener('mousemove',e=>{if(joy.isDragging)handleMove(joy,e.clientX,e.clientY);});
-document.addEventListener('mouseup',()=>{if(joy.isDragging){joy.isDragging=false;resetJoystick(joy);}});
-joy.containerEl.addEventListener('touchstart',e=>{joy.isDragging=true;joy.knobEl.classList.add('active');handleMove(joy,e.touches[0].clientX,e.touches[0].clientY);instructions.classList.add('hidden');e.preventDefault();},{passive:false});
-document.addEventListener('touchmove',e=>{if(joy.isDragging){handleMove(joy,e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();}},{passive:false});
-document.addEventListener('touchend',e=>{if(joy.isDragging){joy.isDragging=false;resetJoystick(joy);}});
-});
-
-// ===== ACTION BUTTONS =====
-document.querySelectorAll('.action-btn').forEach(btn=>{
-const key=btn.dataset.key;
-const pressBtn=e=>{e.preventDefault();btn.style.transform='scale(0.9)';sendKeyEvent(key,'keydown');instructions.classList.add('hidden');};
-const releaseBtn=e=>{e.preventDefault();btn.style.transform='';sendKeyEvent(key,'keyup');};
-btn.addEventListener('mousedown',pressBtn);btn.addEventListener('mouseup',releaseBtn);btn.addEventListener('mouseleave',releaseBtn);
-btn.addEventListener('touchstart',pressBtn,{passive:false});btn.addEventListener('touchend',releaseBtn,{passive:false});btn.addEventListener('touchcancel',releaseBtn);
-});
-
-// ===== INIT =====
-window.addEventListener('load',()=>{joystickData.forEach(initJoystick);});
-window.addEventListener('resize',()=>{joystickData.forEach(initJoystick);});
-window.addEventListener('orientationchange',()=>{setTimeout(()=>{joystickData.forEach(initJoystick);},100);});
-document.addEventListener('gesturestart',e=>e.preventDefault());
-document.addEventListener('gesturechange',e=>e.preventDefault());
-document.addEventListener('click',e=>{if(e.target===gameFrame||e.target===document.body)gameFrame.focus();});
 </script>
+
 </body>
 </html>
