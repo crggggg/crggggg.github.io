@@ -313,6 +313,61 @@
                 rgba(80, 180, 255, 0.7) 0%, 
                 rgba(40, 120, 200, 0.9) 100%);
         }
+        /* SETTINGS BUTTON */
+#settings-btn {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 2000;
+    background: rgba(0,0,0,.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    font-size: 20px;
+}
+
+/* SETTINGS PANEL */
+#settings-panel {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 260px;
+    background: rgba(15,15,30,.95);
+    color: white;
+    padding: 18px;
+    border-radius: 14px;
+    z-index: 2000;
+    display: none;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5);
+}
+
+#settings-panel h3 {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+#settings-panel label {
+    display: block;
+    margin-bottom: 14px;
+    font-size: 13px;
+}
+
+#settings-panel input[type="range"] {
+    width: 100%;
+}
+
+#settings-close {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: #ffcc00;
+    font-weight: bold;
+}
+
     </style>
 </head>
 <body>
@@ -364,7 +419,26 @@
             <span>Menu</span>
         </button>
     </div>
-    
+    <!-- SETTINGS BUTTON -->
+<button id="settings-btn">⚙️</button>
+
+<!-- SETTINGS PANEL -->
+<div id="settings-panel">
+    <h3>Joystick Settings</h3>
+
+    <label>
+        Joystick Size
+        <input id="joy-size" type="range" min="80" max="220" value="140">
+    </label>
+
+    <label>
+        Vertical Position
+        <input id="joy-y" type="range" min="20" max="300" value="40">
+    </label>
+
+    <button id="settings-close">Done</button>
+</div>
+
     <script>
         // DOM Elements
         const container = document.getElementById('joystick-container');
@@ -810,7 +884,63 @@ const ARROWS = {
         console.log('📍 8 Directions: right, rightup, up, leftup, left, leftdown, down, rightdown');
         createJoystick('joystick-left', WASD);
 createJoystick('joystick-right', ARROWS);
+        /* ================= SETTINGS LOGIC ================= */
+
+const settingsBtn = document.getElementById('settings-btn');
+const settingsPanel = document.getElementById('settings-panel');
+const closeSettings = document.getElementById('settings-close');
+
+const sizeSlider = document.getElementById('joy-size');
+const ySlider = document.getElementById('joy-y');
+
+const joysticks = [
+    document.getElementById('joystick-left'),
+    document.getElementById('joystick-right')
+];
+
+/* Load saved settings */
+const saved = JSON.parse(localStorage.getItem('joystickSettings') || '{}');
+if (saved.size) sizeSlider.value = saved.size;
+if (saved.y) ySlider.value = saved.y;
+
+applySettings();
+
+/* Toggle panel */
+settingsBtn.onclick = () => {
+    settingsPanel.style.display =
+        settingsPanel.style.display === 'block' ? 'none' : 'block';
+};
+
+closeSettings.onclick = () => {
+    settingsPanel.style.display = 'none';
+};
+
+/* Apply settings live */
+sizeSlider.oninput = ySlider.oninput = applySettings;
+
+function applySettings() {
+    const size = Number(sizeSlider.value);
+    const y = Number(ySlider.value);
+
+    joysticks.forEach(j => {
+        j.style.width = size + 'px';
+        j.style.height = size + 'px';
+        j.style.bottom = y + 'px';
+
+        const knob = j.querySelector('.joystick-knob');
+        const knobSize = size * 0.43;
+        knob.style.width = knobSize + 'px';
+        knob.style.height = knobSize + 'px';
+    });
+
+    localStorage.setItem('joystickSettings', JSON.stringify({
+        size,
+        y
+    }));
+}
+
 
     </script>
+
 </body>
 </html>
